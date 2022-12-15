@@ -34,10 +34,11 @@ private:
     int val;  // value of immediate number
     int reg_no; // register no
     std::string label; // address label
+    bool isfunc;//区分label的打印
 public:
     enum { IMM, VREG, REG, LABEL };
     MachineOperand(int tp, int val);
-    MachineOperand(std::string label);
+    MachineOperand(std::string label, bool isfunc=false);
     bool operator == (const MachineOperand&) const;
     bool operator < (const MachineOperand&) const;
     bool isImm() { return this->type == IMM; }; 
@@ -119,7 +120,7 @@ public:
 class MovMInstruction : public MachineInstruction
 {
 public:
-    enum opType { MOV, MVN };
+    enum opType { MOV, MVN, MOVEQ, MOVNE, MOVGE, MOVGT, MOVLE, MOVLT };
     MovMInstruction(MachineBlock* p, int op, 
                 MachineOperand* dst, MachineOperand* src,
                 int cond = MachineInstruction::NONE);

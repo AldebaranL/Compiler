@@ -1,7 +1,7 @@
 SRC_PATH ?= src
 INC_PATH += include
 BUILD_PATH ?= build
-TEST_PATH ?= test/level1-1
+TEST_PATH ?= test/level1-2
 OBJ_PATH ?= $(BUILD_PATH)/obj
 BINARY ?= $(BUILD_PATH)/compiler
 SYSLIB_PATH ?= sysyruntimelibrary
@@ -50,7 +50,7 @@ $(BINARY):$(OBJ)
 app:$(LEXER) $(PARSER) $(BINARY)
 
 run:app
-	@$(BINARY) -o example.s -S -i example.sy
+	@$(BINARY) -o example.s -S example.sy
 
 gdb:app
 	@gdb $(BINARY)
@@ -113,7 +113,7 @@ test:app
 			continue
 			fi
 		fi
-		arm-linux-gnueabihf-gcc -mcpu=cortex-a72 -o $${BIN} $${ASM} $(SYSLIB_PATH)/libsysy.a >>$${LOG} 2>&1
+		arm-linux-gnueabihf-gcc -mcpu=cortex-a72 -o $${BIN} $${ASM} $(SYSLIB_PATH)/sylib.a >>$${LOG} 2>&1
 		if [ $$? != 0 ]; then
 			echo "\033[1;31mFAIL:\033[0m $${FILE}\t\033[1;31mAssemble Error\033[0m"
 		else

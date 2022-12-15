@@ -18,6 +18,7 @@ public:
     bool isFunc() const {return kind == FUNC;};
     bool isArray() const {return kind == ARRAY;};
     bool isBool() const{return kind == BOOL;};
+    bool isConst() const{return kind == CONST;};
     //virtual bool is_const() = 0;
 };
 

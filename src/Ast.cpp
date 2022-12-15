@@ -376,6 +376,7 @@ void BinaryExpr::genCode()
             break;
         
         }
+        //cout<<"----opcode:"<<opcode<<endl;
         now_bb = builder->getInsertBB();//重新getInsertBB!!
         new CmpInstruction(opcode, dst, src1, src2, now_bb);
     }

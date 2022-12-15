@@ -169,9 +169,15 @@ bool LinearScan::linearScanRegisterAllocation()
     for (int i = 4; i < 11; i++)
         regs.push_back(i);
     for(auto& interval:intervals){
+        // cout<<"--------------------------"<<endl;
+        // for(int x=0;x<regs.size();x++){
+        //     cout<<regs[x]<<" ";
+        // }
+        // cout<<endl;
         //寻找可用空间
         expireOldIntervals(interval);
         if(regs.empty()){
+            //return false;
             success=false;
         }
         interval->rreg = regs.front();//分配寄存器
@@ -219,13 +225,17 @@ void LinearScan::expireOldIntervals(Interval *interval)
     vector<Interval*>::iterator it = activelist.begin();
 
     //从前往后（结束时间递增）
+    // cout<<"---------------------"<<endl;
     while (it != activelist.end()) {
         if ((*it)->end >= interval->start)
             return;
         // general purpose registers
-        it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置
+        // cout<<"erase!"<<endl;
+        // cout<<"rreg:"<<(*it)->rreg<<endl;
         regs.push_back((*it)->rreg);
         //it++;//不能这样！！一边遍历一边删除
+        //it迭代放最后！！TT晕了
+        it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置     
     }
 }
 

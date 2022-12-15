@@ -14,10 +14,11 @@ MachineOperand::MachineOperand(int tp, int val)
         this->reg_no = val;
 }
 
-MachineOperand::MachineOperand(std::string label)
+MachineOperand::MachineOperand(std::string label, bool isfunc)
 {
     this->type = MachineOperand::LABEL;
     this->label = label;
+    this->isfunc=isfunc;
 }
 
 bool MachineOperand::operator==(const MachineOperand&a) const
@@ -87,7 +88,9 @@ void MachineOperand::output()
         PrintReg();
         break;
     case LABEL:
-        if (this->label.substr(0, 2) == ".L")
+        if(isfunc)
+            fprintf(yyout, "%s", this->label.c_str());
+        else if (this->label.substr(0, 2) == ".L")
             fprintf(yyout, "%s", this->label.c_str());
         else
             fprintf(yyout, "addr_%s", (char*)(this->label.c_str())+1);
@@ -189,6 +192,16 @@ void BinaryMInstruction::output()
         this->use_list[1]->output();
         fprintf(yyout, "\n");
         break;
+    // case BinaryMInstruction::XOR:
+    //     fprintf(yyout, "\txor ");
+    //     this->PrintCond();
+    //     this->def_list[0]->output();
+    //     fprintf(yyout, ", ");
+    //     this->use_list[0]->output();
+    //     fprintf(yyout, ", ");
+    //     this->use_list[1]->output();
+    //     fprintf(yyout, "\n");
+    //     break;
     default:
         break;
     }
@@ -302,8 +315,26 @@ void MovMInstruction::output()
 {
     // TODO
     switch (this->op) {
-        case MovMInstruction::MOV:
+        case MOV:
             fprintf(yyout, "\tmov");
+            break;
+        case MOVEQ:
+            fprintf(yyout, "\tmoveq");
+            break;
+        case MOVNE:
+            fprintf(yyout, "\tmovne");
+            break;
+        case MOVGE:
+            fprintf(yyout, "\tmovge");
+            break;
+        case MOVGT:
+            fprintf(yyout, "\tmovgt");
+            break;
+        case MOVLE:
+            fprintf(yyout, "\tmovle");
+            break;
+        case MOVLT:
+            fprintf(yyout, "\tmovlt");
             break;
         default:
             break;
@@ -364,6 +395,7 @@ CmpMInstruction::CmpMInstruction(MachineBlock* p,
     src2->setParent(this);
 
     p->set_op(cond);//为condbr记录opcode
+    cout<<"----cond:"<<cond<<endl;
 }
 
 void CmpMInstruction::output()
@@ -462,13 +494,21 @@ MachineFunction::MachineFunction(MachineUnit* p, SymbolEntry* sym_ptr)
 void MachineBlock::output()
 {
     fprintf(yyout, ".L%d:\n", this->no);
+    cout<<"total:"<<inst_list.size()<<endl;
+    int count=0;
     for(auto inst : inst_list){
+        // cout<<"count: "<<count<<endl;
+        // cout<<"-----------inst?"<<(inst==nullptr)<<endl;
+        // cout<<"isBinary?"<<inst->isBinary()<<endl;
+        // cout<<"isbp?"<<((BinaryMInstruction*)inst)->isbp()<<endl;
         if(inst->isBinary()&&((BinaryMInstruction*)inst)->isbp()){
             //说明是return语句的add sp
             cout<<"?????"<<parent->AllocSpace(0)<<endl;
             ((BinaryMInstruction*)inst)->set_src2(new MachineOperand(MachineOperand::IMM, parent->AllocSpace(0)));
         }
+        // cout<<"count: "<<count<<endl;
         inst->output();
+        // cout<<"count: "<<count++<<endl;
     }
 }
 
@@ -517,12 +557,15 @@ void MachineUnit::PrintGlobalDecl()
         const char * name=((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str()+1;
         int size=((IntType*)(global_dst[i]->getType()))->getSize()/8;
         
+        if(global_dst[i]->getType()->isConst()){
+            fprintf(yyout, "\t.section .rodata\n");
+        }
         //cout<<"name????????"<<name<<endl;???为什么??????????
         fprintf(yyout, "\t.global %s\n", name);
         fprintf(yyout, "\t.align 4\n");
         fprintf(yyout, "\t.size %s, %d\n", name, size);
         fprintf(yyout, "%s:\n", name);
-
+        
         string val;
         if(global_src[i]&&global_src[i]->isConstant()){
             val=global_src[i]->toStr();

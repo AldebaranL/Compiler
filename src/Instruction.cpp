@@ -684,6 +684,10 @@ void BinaryInstruction::genMachineCode(AsmBuilder* builder)
     MachineOperand* temp1 = genMachineVReg();
     MachineOperand* temp2 = genMachineVReg();
 
+    //用于xor
+    auto tr=genMachineImm(1);
+    auto fl=genMachineImm(0);
+
     switch (opcode)
     {
     case ADD:
@@ -704,10 +708,21 @@ void BinaryInstruction::genMachineCode(AsmBuilder* builder)
         cur_inst = new BinaryMInstruction(cur_block, BinaryMInstruction::MUL, temp2, temp1, src2);
         cur_block->InsertInst(cur_inst);
         cur_inst = new BinaryMInstruction(cur_block, BinaryMInstruction::SUB, dst, src1, temp2);
+        break;
+    case NOT:
+        //cur_inst = new BinaryMInstruction(cur_block, BinaryMInstruction::XOR, dst, src1, fl);
+        cur_block->InsertInst(new CmpMInstruction(cur_block, src1, fl, CmpInstruction::E));
+        cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOVEQ, dst, tr));
+        cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOVNE, dst, fl));
+        break;
+    case SAME:
+        //cur_inst = new BinaryMInstruction(cur_block, BinaryMInstruction::XOR, dst, src1, tr);
+        break;
     default:
         break;
     }
-    cur_block->InsertInst(cur_inst);
+    if(cur_inst)
+        cur_block->InsertInst(cur_inst);
 }
 
 void CmpInstruction::genMachineCode(AsmBuilder* builder)
@@ -732,6 +747,42 @@ void CmpInstruction::genMachineCode(AsmBuilder* builder)
     }
     cur_inst = new CmpMInstruction(cur_block, src1, src2, opcode);
     cur_block->InsertInst(cur_inst);
+
+    //保存必要的运算结果
+    auto dst=genMachineOperand(operands[0]);
+    auto tr=genMachineImm(1);
+    auto fl=genMachineImm(0);
+    switch (cur_block->get_op())
+    {
+        case CmpMInstruction::E:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVEQ, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVNE, dst, fl));
+            break;
+        case CmpMInstruction::NE:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVNE, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVEQ, dst, fl));
+            break;
+        case CmpMInstruction::L:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVLT, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVGE, dst, fl));
+            break;
+        case CmpMInstruction::LE:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVLE, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVGT, dst, fl));
+            break;
+        case CmpMInstruction::G:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVGT, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVLE, dst, fl));
+            break;
+        case CmpMInstruction::GE:
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVGE, dst, tr));
+            cur_block->InsertInst(new MovMInstruction(cur_block,MovMInstruction::MOVLT, dst, fl));
+            break;
+        default:
+            break;
+    }
+    // cur_inst=new MovMInstruction(cur_block,op, dst, tr);
+    // cur_block->InsertInst(cur_inst);
 }
 
 void UncondBrInstruction::genMachineCode(AsmBuilder* builder)
@@ -742,7 +793,7 @@ void UncondBrInstruction::genMachineCode(AsmBuilder* builder)
     std::stringstream ss;
     ss << ".L" << branch->getNo();
     MachineOperand* dst = new MachineOperand(ss.str());
-    auto cur_inst = new BranchMInstruction(cur_block, BranchMInstruction::B, dst);
+    MachineInstruction* cur_inst = new BranchMInstruction(cur_block, BranchMInstruction::B, dst);
     cur_block->InsertInst(cur_inst);
 }
 
@@ -755,7 +806,7 @@ void CondBrInstruction::genMachineCode(AsmBuilder* builder)
     //true 有条件
     truess << ".L" << true_branch->getNo();
     MachineOperand* dst = new MachineOperand(truess.str());
-    auto cur_inst = new BranchMInstruction(cur_block, BranchMInstruction::B, dst, cur_block->get_op());
+    MachineInstruction* cur_inst = new BranchMInstruction(cur_block, BranchMInstruction::B, dst, cur_block->get_op());
     cur_block->InsertInst(cur_inst);
     //false 无条件
     falsess << ".L" << false_branch->getNo();
@@ -777,7 +828,7 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     if(operands.size()>0){
         MachineOperand* r0 = new MachineOperand(MachineOperand::REG, 0);//0号寄存器
         MachineOperand* src = genMachineOperand(operands[0]);
-        auto cur_inst = new MovMInstruction(cur_block, MovMInstruction::MOV, r0, src);//返回值放入0号寄存器
+        MachineInstruction* cur_inst = new MovMInstruction(cur_block, MovMInstruction::MOV, r0, src);//返回值放入0号寄存器
         cur_block->InsertInst(cur_inst);
     }
     //add指令 sp
@@ -785,25 +836,52 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
     cout<<cur_func->AllocSpace(0)<<endl;
     auto size = new MachineOperand(MachineOperand::IMM, cur_func->AllocSpace(0));
-    auto add_sp = new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, size, true);//bp置位！
+    MachineInstruction* add_sp = new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, size, true);//bp置位！
     cur_block->InsertInst(add_sp);
 
     //对称pop
     auto fp = new MachineOperand(MachineOperand::REG, 11);
     auto lr = new MachineOperand(MachineOperand::REG, 14);
-    auto pop1 = new StackMInstructon(nullptr, StackMInstructon::POP, lr);
-    auto pop2 = new StackMInstructon(nullptr, StackMInstructon::POP, fp);
+    MachineInstruction* pop1 = new StackMInstructon(nullptr, StackMInstructon::POP, lr);
+    MachineInstruction* pop2 = new StackMInstructon(nullptr, StackMInstructon::POP, fp);
     cur_block->InsertInst(pop1);
     cur_block->InsertInst(pop2);
 
     //bx lr
-    auto bx_lr = new BranchMInstruction(cur_block, BranchMInstruction::BX, lr);
+    MachineInstruction* bx_lr = new BranchMInstruction(cur_block, BranchMInstruction::BX, lr);
     cur_block->InsertInst(bx_lr);
 }
 
 void CallInstruction::genMachineCode(AsmBuilder* builder)
 {
     cout<<"CallInstruction~!"<<endl;
+    //Todo
+    //暂时只考虑参数<=4的情况。
+    auto cur_block=builder->getBlock();
+    MachineInstruction* cur_inst=nullptr;
+    if(vo.size()<=4){
+        //放参数
+        vector<MachineOperand*> mvo;
+        int c=0;
+        while(c<vo.size()){
+            auto reg=new MachineOperand(MachineOperand::REG, c);
+            auto param=genMachineOperand(vo[c]);
+            cur_inst=new MovMInstruction(cur_block, MovMInstruction::MOV, reg, param);
+            cur_block->InsertInst(cur_inst);
+            c++;
+        }
+        //bl func
+        const char *func_name = names.c_str() + 1;
+        auto func_dst=new MachineOperand(func_name, true);
+        cur_inst=new BranchMInstruction(cur_block, BranchMInstruction::BL, func_dst);
+        cur_block->InsertInst(cur_inst);
+        //mov r0 ..
+        auto ret_dst=genMachineOperand(operands[0]);
+        auto r0=new MachineOperand(MachineOperand::REG, 0);
+        cur_inst=new MovMInstruction(cur_block, MovMInstruction::MOV, ret_dst, r0);
+        cur_block->InsertInst(cur_inst);
+    }
+    cout<<"call end??"<<endl;
 }
 
 void GlobalInstruction::genMachineCode(AsmBuilder* builder)
@@ -824,6 +902,43 @@ void GlobalInstruction::genMachineCode(AsmBuilder* builder)
 void TypefixInstruction::genMachineCode(AsmBuilder* builder)
 {
     cout<<"TypefixInstruction~!"<<endl;
+    auto cur_block=builder->getBlock();
+
+    auto dst=genMachineOperand(operands[0]);
+    auto src=genMachineOperand(operands[1]);
+    
+    auto tr=genMachineImm(1);
+    int op;
+
+    //{ E, NE, L, LE , G, GE, NONE }
+    switch (cur_block->get_op())
+    {
+    case CmpMInstruction::E:
+        op=MovMInstruction::MOVEQ;
+        break;
+    case CmpMInstruction::NE:
+        op=MovMInstruction::MOVNE;
+        break;
+    case CmpMInstruction::L:
+        op=MovMInstruction::MOVLT;
+        break;
+    case CmpMInstruction::LE:
+        op=MovMInstruction::MOVLE;
+        break;
+    case CmpMInstruction::G:
+        op=MovMInstruction::MOVGT;
+        break;
+    case CmpMInstruction::GE:
+        op=MovMInstruction::MOVGE;
+        break;
+    default:
+        break;
+    }
+
+    cout<<"op??"<<op<<endl;
+    MachineInstruction* cur_inst=new MovMInstruction(cur_block,MovMInstruction::MOV, dst, src);
+
+    cur_block->InsertInst(cur_inst);
 }
 
 void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)

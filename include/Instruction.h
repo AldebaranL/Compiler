@@ -97,7 +97,7 @@ public:
     ~CmpInstruction();
     void output() const;
     void genMachineCode(AsmBuilder*);
-    enum {E, NE, L, GE, G, LE};
+    enum {E, NE, L, LE , G, GE};
 };
 
 // unconditional branch
@@ -146,6 +146,7 @@ public:
     std::string names;
     vector<Operand*> vo;
     int isvoid;
+    //SymbolEntry *se;
 public:
     CallInstruction(SymbolEntry *symbolentry,Operand *dst,vector<Operand*> vo,BasicBlock *insert_bb = nullptr);
     ~CallInstruction();
