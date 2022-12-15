@@ -38,6 +38,7 @@ private:
     std::vector<Interval*> activelist;
     static bool compareStart(Interval*a, Interval*b);
     static bool compareEnd(Interval*a, Interval*b);
+    static bool up(int a, int b);
     void expireOldIntervals(Interval *interval);
     void spillAtInterval(Interval *interval);
     void makeDuChains();

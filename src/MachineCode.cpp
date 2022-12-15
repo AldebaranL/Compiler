@@ -417,7 +417,7 @@ void CmpMInstruction::output()
 }
 
 StackMInstructon::StackMInstructon(MachineBlock* p, int op, 
-    MachineOperand* src,
+    vector<MachineOperand*> src_list,
     int cond)
 {
     // TODO
@@ -425,9 +425,20 @@ StackMInstructon::StackMInstructon(MachineBlock* p, int op,
     this->type = MachineInstruction::STACK;
     this->op = op;
     this->cond = cond;
-    if (src) {
-        this->use_list.push_back(src);
-        src->setParent(this);
+    if (!src_list.empty()) {
+        for(auto& src:src_list){
+            this->use_list.push_back(src);
+            src->setParent(this);
+        }
+    }
+}
+
+void StackMInstructon::addSrc(vector<MachineOperand*> src_list){
+    if (!src_list.empty()) {
+        for(auto& src:src_list){
+            this->use_list.push_back(src);
+            src->setParent(this);
+        }
     }
 }
 
@@ -446,8 +457,12 @@ void StackMInstructon::output()
                 break;
         }
         fprintf(yyout, "{");
-        if (use_list.size()>0) {
-            this->use_list[0]->output();
+        if (!use_list.empty()) {
+            for(auto& src:use_list){
+                src->output();
+                if(src!=use_list.back())
+                    fprintf(yyout, ", ");
+            }
         } 
         fprintf(yyout, "}\n");
     }
@@ -506,6 +521,10 @@ void MachineBlock::output()
             cout<<"?????"<<parent->AllocSpace(0)<<endl;
             ((BinaryMInstruction*)inst)->set_src2(new MachineOperand(MachineOperand::IMM, parent->AllocSpace(0)));
         }
+        if(inst->isStack()&&((StackMInstructon*)inst)->isPOP()){
+            //说明是return语句的add sp
+            ((StackMInstructon*)inst)->addSrc(parent->src_list);
+        }
         // cout<<"count: "<<count<<endl;
         inst->output();
         // cout<<"count: "<<count++<<endl;
@@ -530,8 +549,14 @@ void MachineFunction::output()
     auto fp = new MachineOperand(MachineOperand::REG, 11);
     auto sp = new MachineOperand(MachineOperand::REG, 13);
     auto lr = new MachineOperand(MachineOperand::REG, 14);
-    (new StackMInstructon(nullptr, StackMInstructon::PUSH, fp))->output();
-    (new StackMInstructon(nullptr, StackMInstructon::PUSH, lr))->output();
+
+    for(auto& reg:saved_regs){
+        auto r=new MachineOperand(MachineOperand::REG, reg);
+        src_list.push_back(r);
+    }
+    src_list.push_back(fp);
+    src_list.push_back(lr);
+    (new StackMInstructon(nullptr, StackMInstructon::PUSH, src_list))->output();
     (new MovMInstruction(nullptr, MovMInstruction::MOV, fp, sp))->output();
     int off = AllocSpace(0);
     if (off % 8 != 0) {

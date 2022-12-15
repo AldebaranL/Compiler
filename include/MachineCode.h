@@ -82,6 +82,7 @@ public:
     std::vector<MachineOperand*>& getUse() {return use_list;};
 
     bool isBinary(){return type==BINARY;};
+    bool isStack(){return type==STACK;};
 };
 
 class BinaryMInstruction : public MachineInstruction
@@ -152,9 +153,11 @@ class StackMInstructon : public MachineInstruction
 public:
     enum opType { PUSH, POP };
     StackMInstructon(MachineBlock* p, int op, 
-                MachineOperand* dst,
+                vector<MachineOperand*> src_list,
                 int cond = MachineInstruction::NONE);
     void output();
+    void addSrc(vector<MachineOperand*> src_list);
+    bool isPOP(){return op==POP;};
 };
 
 // class GlobalMInstruction : public MachineInstruction
@@ -206,6 +209,8 @@ private:
     int stack_size;
     std::set<int> saved_regs;
     SymbolEntry* sym_ptr;
+public:
+    vector<MachineOperand*> src_list;
 
 public:
     std::vector<MachineBlock*>& getBlocks() {return block_list;};

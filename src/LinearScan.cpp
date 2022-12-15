@@ -233,6 +233,7 @@ void LinearScan::expireOldIntervals(Interval *interval)
         // cout<<"erase!"<<endl;
         // cout<<"rreg:"<<(*it)->rreg<<endl;
         regs.push_back((*it)->rreg);
+        sort(regs.begin(), regs.end(), up);
         //it++;//不能这样！！一边遍历一边删除
         //it迭代放最后！！TT晕了
         it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置     
@@ -266,4 +267,9 @@ bool LinearScan::compareStart(Interval *a, Interval *b)
 bool LinearScan::compareEnd(Interval* a, Interval* b) 
 {
     return a->end < b->end;
+}
+
+bool LinearScan::up(int a, int b) 
+{
+    return a < b;
 }

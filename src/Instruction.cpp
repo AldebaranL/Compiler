@@ -596,6 +596,17 @@ void StoreInstruction::genMachineCode(AsmBuilder* builder)
     MachineInstruction* cur_inst = nullptr;
 
     auto src = genMachineOperand(operands[1]);
+
+    //识别一下是不是参数
+    Function* func=parent->getParent();
+    //可以认出！
+    auto f=find(func->op.begin(), func->op.end(), operands[1]);
+    //cout<<"========isparam??"<<(distance(func->op.begin(), f))<<endl;
+    
+    if(find(func->op.begin(), func->op.end(), operands[1])!=func->op.end()){
+        //distance是推断第几个参数
+        src=new MachineOperand(MachineOperand::REG, distance(func->op.begin(), f));
+    }
     
     // Load global operand
     if(operands[1]->getEntry()->isConstant()){
@@ -832,7 +843,7 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
         cur_block->InsertInst(cur_inst);
     }
     //add指令 sp
-    auto cur_func = builder->getFunction();
+    MachineFunction* cur_func = builder->getFunction();
     auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
     cout<<cur_func->AllocSpace(0)<<endl;
     auto size = new MachineOperand(MachineOperand::IMM, cur_func->AllocSpace(0));
@@ -842,10 +853,12 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     //对称pop
     auto fp = new MachineOperand(MachineOperand::REG, 11);
     auto lr = new MachineOperand(MachineOperand::REG, 14);
-    MachineInstruction* pop1 = new StackMInstructon(nullptr, StackMInstructon::POP, lr);
-    MachineInstruction* pop2 = new StackMInstructon(nullptr, StackMInstructon::POP, fp);
-    cur_block->InsertInst(pop1);
-    cur_block->InsertInst(pop2);
+    vector<MachineOperand*> src_list;
+    // src_list.push_back(fp);
+    // src_list.push_back(lr);
+    MachineInstruction* pop = new StackMInstructon(nullptr, StackMInstructon::POP, src_list);//后面填
+    cout<<"pop==nullptr?"<<(pop==nullptr)<<endl;
+    cur_block->InsertInst(pop);
 
     //bx lr
     MachineInstruction* bx_lr = new BranchMInstruction(cur_block, BranchMInstruction::BX, lr);

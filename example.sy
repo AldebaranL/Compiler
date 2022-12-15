@@ -1,11 +1,16 @@
-int a;
-int func(int p){
-	p = p - 1;
-	return p;
-}
-int main(){
-	int b;
-	a = 10;
-	b = func(a);
-	return b;
+int a, b, d;
+
+int set_a(int val) { a = val; return a; }
+int set_b(int val) { b = val; return b; }
+int set_d(int val) { d = val; return d; }
+
+int main()
+{
+    a = 2; b = 3;
+    if (set_a(0) && set_b(1)) {}
+    putint(a); putch(32);
+    putint(b); putch(32);
+
+    
+    return 0;
 }
