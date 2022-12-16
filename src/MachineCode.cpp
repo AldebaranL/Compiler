@@ -509,7 +509,7 @@ MachineFunction::MachineFunction(MachineUnit* p, SymbolEntry* sym_ptr)
 void MachineBlock::output()
 {
     fprintf(yyout, ".L%d:\n", this->no);
-    cout<<"total:"<<inst_list.size()<<endl;
+    //cout<<"total:"<<inst_list.size()<<endl;
     int count=0;
     for(auto inst : inst_list){
         // cout<<"count: "<<count<<endl;
@@ -528,6 +528,9 @@ void MachineBlock::output()
         // cout<<"count: "<<count<<endl;
         inst->output();
         // cout<<"count: "<<count++<<endl;
+    }
+    if(inst_list.empty()){
+        
     }
 }
 

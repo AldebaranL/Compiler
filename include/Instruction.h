@@ -182,8 +182,9 @@ class ArrayItemFetchInstruction : public Instruction
     int size;
     Type* type;
     bool f;
+    Operand* addr;
 public:
-    ArrayItemFetchInstruction(Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb = nullptr, bool f=false);
+    ArrayItemFetchInstruction(Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb = nullptr, bool f=false, Operand* addr=nullptr);
     ~ArrayItemFetchInstruction();
     void output() const;
     void genMachineCode(AsmBuilder*);

@@ -147,6 +147,7 @@ LVal
             assert(array_se != nullptr);
         }
         $$ = new ArrayItem(array_se, offset);
+        cout<<"--------------array_se:"<<array_se<<endl;
         ((IdentifierSymbolEntry*)array_se)->setParent($$);
         delete []$1;
     }
@@ -1013,12 +1014,12 @@ ParamDefs:
     }
     |
     ParamDefs COMMA Type ID LBRACKET INTEGER RBRACKET{
-        paramtypes.push_back($3);
+        paramtypes.push_back(new ArrayType($3, $6));
         paramsymbols.push_back($4);
     }
     |
     ParamDefs COMMA Type ID LBRACKET RBRACKET{
-        paramtypes.push_back($3);
+        paramtypes.push_back(new ArrayType($3));
         paramsymbols.push_back($4);
     }
     ;

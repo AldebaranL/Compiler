@@ -240,11 +240,15 @@ void FunctionDef::genCode()
         }
         //else{
             if(f){
-                func->ret_bb->setNo(no);
+                //func->ret_bb->setNo(no);
+                if(bf2!=func->getRet()){
+                    new UncondBrInstruction(func->ret_bb,bf2);
+                }
                 RetInstruction* ret=new RetInstruction(nullptr,func->getRet());  
             }
             else{
-                new RetInstruction(nullptr,bf1);  
+                new UncondBrInstruction(func->ret_bb,bf1);
+                new RetInstruction(nullptr,func->getRet());  
             }
         //}
     }
@@ -430,7 +434,7 @@ void Constant::genCode()
 // }
 void Id::genCode()
 {
-    //cout<<"Id~!"<<endl;
+    cout<<"Id~!"<<endl;
     BasicBlock *bb = builder->getInsertBB();
     Operand *addr = dynamic_cast<IdentifierSymbolEntry*>(symbolEntry)->getAddr();
     //cout<<"addr:"<<addr->toStr()<<endl;
@@ -456,7 +460,8 @@ void ArrayItem::genCode()
         new LoadInstruction(temp1, addr, bb);
         Operand *offset_addr = offset->getOperand();
         Type *array_type = ((ArrayType*)(symbolEntry->getType()))->gettype();
-        new ArrayItemFetchInstruction(array_type, head, temp1, offset_addr, bb, true);
+        ((TemporarySymbolEntry*)(temp1->getEntry()))->setOffset(((TemporarySymbolEntry*)(addr->getEntry()))->getOffset());
+        new ArrayItemFetchInstruction(array_type, head, temp1, offset_addr, bb, true, addr);
         new LoadInstruction(dst, head, bb);
     }
 }

@@ -237,7 +237,7 @@ void LinearScan::expireOldIntervals(Interval *interval)
         //it迭代放最后！！TT晕了
         it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置     
     }
-    sort(regs.begin(), regs.end(), up);
+    //sort(regs.begin(), regs.end(), up);
 }
 
 //寄存器溢出 找结束时间最晚的
