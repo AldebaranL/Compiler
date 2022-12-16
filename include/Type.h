@@ -80,6 +80,7 @@ public:
     Type* gettype(){return type;};
     int getsize(){return size;}
     std::string toStr();
+    bool isInt(){return this->type->isInt();};
     //bool is_const();
 };
 

@@ -50,7 +50,7 @@ $(BINARY):$(OBJ)
 app:$(LEXER) $(PARSER) $(BINARY)
 
 run:app
-	@$(BINARY) -o example.s -i example.sy
+	@$(BINARY) -o example.s -S example.sy
 
 gdb:app
 	@gdb $(BINARY)

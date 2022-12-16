@@ -538,8 +538,21 @@ void AllocaInstruction::genMachineCode(AsmBuilder* builder)
     * Store frame offset in symbol entry */
     cout<<"AllocaInstruction~!"<<endl;
     auto cur_func = builder->getFunction();
-    int offset = cur_func->AllocSpace(4);
+    
+    int offset;
+    if(se->getType()->isArray()){
+        cout<<"isArray!"<<endl;
+        cout<<"size:"<<((ArrayType*)(se->getType()))->getsize()<<endl;
+        if(((ArrayType*)(se->getType()))->gettype()->isInt())
+            offset=cur_func->AllocSpace(4*((ArrayType*)(se->getType()))->getsize());
+    }
+    else{
+        offset = cur_func->AllocSpace(4);
+    }
+    cout<<"1:"<<operands[0]->getEntry()<<endl;
+    cout<<"2:"<<se<<endl;
     dynamic_cast<TemporarySymbolEntry*>(operands[0]->getEntry())->setOffset(-offset);
+
 }
 
 void LoadInstruction::genMachineCode(AsmBuilder* builder)
@@ -957,4 +970,28 @@ void TypefixInstruction::genMachineCode(AsmBuilder* builder)
 void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)
 {
     cout<<"ArrayItemFetchInstruction~!"<<endl;
+    auto cur_block=builder->getBlock();
+    MachineInstruction* cur_inst=nullptr;
+    auto dst=genMachineOperand(operands[0]);
+    auto offset=genMachineImm(dynamic_cast<TemporarySymbolEntry*>(operands[1]->getEntry())->getOffset());
+    
+    //计算head
+    auto temp1=genMachineVReg();
+    cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, offset));
+    auto head=genMachineVReg();
+    auto fp=new MachineOperand(MachineOperand::REG, 11);
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, head, fp, temp1));
+
+    //计算item地址
+    auto size=genMachineImm(4);
+    auto temp2=genMachineVReg();
+    cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, temp2, size));
+    auto item_off=genMachineVReg();
+    auto off=genMachineOperand(operands[2]);//offset
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::MUL, item_off, temp2, off));
+
+    auto item_addr=genMachineVReg();
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, head, item_off));
+
+    //cur_block->InsertInst(new StoreMInstruction(cur_block, item_addr, dst));
 }
