@@ -14,6 +14,8 @@ private:
 protected:
     enum {CONSTANT, VARIABLE, TEMPORARY};
     Type *type;
+    int const_value;
+
 
 public:
     SymbolEntry(Type *type, int kind);
@@ -25,6 +27,8 @@ public:
     void setType(Type *type) {this->type = type;};
     virtual std::string toStr() = 0;
     // You can add any function you need here.
+    void set_value(int val){const_value=val;};
+    int get_value(){return const_value;};
 };
 
 

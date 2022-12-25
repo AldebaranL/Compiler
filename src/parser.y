@@ -10,7 +10,8 @@
     int yyerror( char const * );
 
     map<std::string, ExprNode*> idlist;
-    map<std::string, int> arraylist;
+    map<std::string, vector<ExprNode*>> arraylist;
+    vector<string> curr_array;
     std::vector<Type*> paramtypes;
     vector<SymbolEntry*> sesymlist;
     std::vector<std::string> paramsymbols;
@@ -23,6 +24,12 @@
 
     vector<BreakStmt*> breakList;
     vector<ContinueStmt*> continueList;
+
+    int l_br=-1;
+    vector<int>dims;
+    vector<int>dc_record;
+    map<string, vector<ExprNode*>> init_;
+    string init_array;
 }
 
 %code requires {
@@ -106,8 +113,41 @@ ContinueStmt
     }
     ;
 
+
+ARRAY
+    :
+    ID LBRACKET RBRACKET{
+        curr_array.push_back($1);
+        //vector<ExprNode*> emp;
+        //arraylist[curr_array.back()]=emp;
+        arraylist[curr_array.back()].push_back(nullptr);
+    }
+    |
+    ID LBRACKET Exp RBRACKET
+    {
+        //arraylist.erase($1);
+        cout<<"hi array----"<<$1<<endl;
+        curr_array.push_back($1);
+        arraylist[curr_array.back()].push_back($3);
+    }
+    |
+    ARRAY LBRACKET Exp RBRACKET
+    {
+        // cout<<"hi array----"<<curr_array.size()<<endl;
+        //Exp可能调用另外的ARRAY，导致错误。
+        if($3->getSymPtr()->getType()->isArray()||$3->get_arrflag()){
+            cout<<"hi array----"<<curr_array.back()<<endl;
+            curr_array.erase(curr_array.end()-1);
+            cout<<"!!!!!!!!!!!!!!!!!!!!"<<endl;
+            cout<<"hi array----"<<curr_array.back()<<endl;
+        }
+        arraylist[curr_array.back()].push_back($3);
+    }
+    ;
+
 LVal
-    : ID {
+    : 
+    ID {
         SymbolEntry *se;
         se = identifiers->lookup($1);
 
@@ -122,54 +162,37 @@ LVal
         }
 
         if(se->getType()->isArray()){
+              cout<<"ID isArray!!  "<<$1<<endl;
             //$$ = (ExprNode*)(((IdentifierSymbolEntry*)se)->getParent());
-            SymbolEntry *offset_se = new ConstantSymbolEntry(TypeSystem::intType, 0);//offset为常数
-            Constant *offset = new Constant(offset_se);
-            $$ = new ArrayItem(se, offset, true);
-        }
+            vector<ExprNode*> emp;
+            $$=new ArrayItem(se, emp, true);
+            //((ArrayItem*)$$)->setf(true);
+            // SymbolEntry *offset_se = new ConstantSymbolEntry(TypeSystem::intType, 0);//offset为常数
+            // Constant *offset = new Constant(offset_se);
+            // $$ = new ArrayItem(se, offset, true);
+       }
         else{
             $$ = new Id(se);
         }
         delete []$1;
     }
     |
-    ID LBRACKET INTEGER RBRACKET {
+    ARRAY {
+        cout<<"curr_array.back():"<<curr_array.back()<<endl;
         SymbolEntry *array_se;
-        array_se = identifiers->lookup($1);
+        array_se = identifiers->lookup(curr_array.back());
         
-        SymbolEntry *offset_se = new ConstantSymbolEntry(TypeSystem::intType, $3);//offset为常数
-        Constant *offset = new Constant(offset_se);
-
-        if(array_se == nullptr)
-        {
-            fprintf(stderr, "identifier \"%s\" is undefined\n", (char*)$1);
-            delete [](char*)$1;
-            assert(array_se != nullptr);
-        }
-        $$ = new ArrayItem(array_se, offset);
-        cout<<"--------------array_se:"<<array_se<<endl;
+        vector<ExprNode*> offsets=arraylist[curr_array.back()];
+        $$ = new ArrayItem(array_se, offsets);
+        $$->set_arrflag(true);
         ((IdentifierSymbolEntry*)array_se)->setParent($$);
-        delete []$1;
-    }
-    |
-    ID LBRACKET ID RBRACKET {
-        SymbolEntry *array_se;
-        array_se = identifiers->lookup($1);
-
-        SymbolEntry *offset_se=identifiers->lookup($3);
-        Id *offset = new Id(offset_se);
-
-        if(array_se == nullptr)
-        {
-            fprintf(stderr, "identifier \"%s\" is undefined\n", (char*)$1);
-            delete [](char*)$1;
-            assert(array_se != nullptr);
-        }
-        $$ = new ArrayItem(array_se, offset);
-        ((IdentifierSymbolEntry*)array_se)->setParent($$);
-        delete []$1;
+        cout<<"hi"<<endl;
+        //一定要！因为可能有重复！
+        arraylist.erase(curr_array.back());
     }
     ;
+
+
 ExprStmt
     :
     Exp SEMICOLON{
@@ -195,6 +218,9 @@ AssignExpr
             //assert(alarm);
         }
         SymbolEntry *se = $1->getSymPtr();
+        if($1->getSymPtr()->getType()->isConst()){
+            $1->getSymPtr()->set_value($4->getSymPtr()->get_value());
+        }
         $$ = new AssignStmt($1, $4);
     }
     ;
@@ -275,12 +301,13 @@ Cond
 PrimaryExp
     :
     LVal {
+
         $$ = $1;
-        //std::cout<<"LVal"<<endl;
     }
     |
     INTEGER {
         SymbolEntry *se = new ConstantSymbolEntry(TypeSystem::intType, $1);
+        se->set_value($1);
         $$ = new Constant(se);
        // std::cout<<"INTEGER"<<$1<<endl;
     }
@@ -339,6 +366,7 @@ sufSinExp
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
         $$ = new sufSingleExpr(se, $1, sufSingleExpr::AADD);
+        $$->set_arrflag($1->get_arrflag());
     }
     | 
     sufSinExp SSUB {
@@ -358,6 +386,7 @@ sufSinExp
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
         $$ = new sufSingleExpr(se, $1, sufSingleExpr::SSUB);
+        $$->set_arrflag($1->get_arrflag());
     }
     
     ;
@@ -385,6 +414,7 @@ preSinExp
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
         $$ = new preSingleExpr(se, preSingleExpr::AADD, $2);
+        $$->set_arrflag($2->get_arrflag());
     }
     | 
     SSUB preSinExp{
@@ -404,6 +434,7 @@ preSinExp
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
         $$ = new preSingleExpr(se, preSingleExpr::SSUB, $2);
+        $$->set_arrflag($2->get_arrflag());
     }
     |
     NOT preSinExp{
@@ -421,16 +452,19 @@ preSinExp
         // SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
         // $$ = new preSingleExpr(se, preSingleExpr::ADD, $2);
         $$=$2;
+        $$->set_arrflag($2->get_arrflag());
     }
     |
     SUB preSinExp{
         if($2->getSymPtr()->isConstant()){
             SymbolEntry *se = new ConstantSymbolEntry(TypeSystem::intType, -1*((ConstantSymbolEntry*)($2->getSymPtr()))->getValue());
-            $$ = new Constant(se);
+            se->set_value(-1*($2->getSymPtr()->get_value()));
+            $$ = new Constant(se);$$->set_arrflag($2->get_arrflag());
         }
         else{
             SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
             $$ = new preSingleExpr(se, preSingleExpr::SUB, $2);
+            $$->set_arrflag($2->get_arrflag());
         }
     }
     ; 
@@ -471,7 +505,11 @@ MulExp
         }
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        int res=($1->getSymPtr()->get_value())*($3->getSymPtr()->get_value());
+        se->set_value(res);
+        
         $$ = new BinaryExpr(se, BinaryExpr::MUL, $1, $3);
+        $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
     }
     |
     MulExp DIV preSinExp
@@ -491,7 +529,12 @@ MulExp
         }
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        if($3->getSymPtr()->get_value()!=0){
+            int res=($1->getSymPtr()->get_value())/($3->getSymPtr()->get_value());
+            se->set_value(res);
+        }
         $$ = new BinaryExpr(se, BinaryExpr::DIV, $1, $3);
+        $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
     }
     |
     MulExp MOD preSinExp
@@ -511,7 +554,12 @@ MulExp
         }
 
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        if($3->getSymPtr()->get_value()!=0){
+            int res=($1->getSymPtr()->get_value())%($3->getSymPtr()->get_value());
+            se->set_value(res);
+        }
         $$ = new BinaryExpr(se, BinaryExpr::MOD, $1, $3);
+        $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
     }
     ;
 AddExp
@@ -551,7 +599,11 @@ AddExp
         }
         
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        int res=($1->getSymPtr()->get_value())+($3->getSymPtr()->get_value());
+        se->set_value(res);
+
         $$ = new BinaryExpr(se, BinaryExpr::ADD, $1, $3);
+        $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
     }
     |
     AddExp SUB MulExp
@@ -571,7 +623,11 @@ AddExp
         }
         
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        int res=($1->getSymPtr()->get_value())-($3->getSymPtr()->get_value());
+        se->set_value(res);
+        
         $$ = new BinaryExpr(se, BinaryExpr::SUB, $1, $3);
+        $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
     }
     ;
 RelExp
@@ -838,12 +894,217 @@ Type
         $$ = TypeSystem::constType;
     }
     ;
-Array
+BRACEUnit
     :
-    ID LBRACKET INTEGER RBRACKET
+    Exp{
+        //计算位置
+        int pos=0;
+        cout<<init_array<<": ";
+        int size=dc_record.size();
+        int total=1;
+        for(auto & dim:dims){
+            total*=dim;
+        }
+        for(int i=0;i<size-1;i++){
+            total/=dims[i];
+            pos+=dc_record[i]*total;
+        }
+        for(int i=0;i<size;i++){
+            cout<<"["<<dc_record[i]<<"]";
+        }
+        pos+=dc_record[size-1];
+        cout<<endl;
+        //赋值！
+        cout<<"pos:"<<pos<<endl;
+        init_[init_array][pos]=$1;
+        cout<<"haha"<<endl;
+        //--------------------------------------------------
+        cout<<"dc_record.back(): "<<dc_record.back()<<endl;
+        cout<<"dims.back(): "<<dims.back()<<endl;
+        if(dc_record.back()+1==dims.back()){
+            int i=dc_record.size()-1;
+            //进位
+            while(i>=0){
+                dc_record[i]=0;
+                if(i>0){
+                    if(dc_record[i-1]+1==dims[i-1]){
+                        i--;
+                        continue;
+                    }
+                    else{
+                        dc_record[i-1]++;
+                        break;
+                    }
+                }
+                else{
+                    break;
+                }
+            }
+            // if(i==l_br){
+            //     if(i>0){
+            //         dc_record[i-1]--;
+            //     }
+            // }
+                
+        }
+        else
+            dc_record.back()++;
+    }
+    |
+    LBRACE{
+        //空
+        if(l_br==-1){
+            std::map <std::string, vector<ExprNode*>>::iterator it1=arraylist.begin();
+            //初始化dims和dc_record
+            //一定要while循环 因为里面有可能有很多个数组id（但是未初始化的目标数组只有一个）
+            int total=1;//计算一共有多少元素
+            while(it1!=arraylist.end()){
+                if(!identifiers->lookup(it1->first)){
+                    init_array=it1->first;
+                    Type* arrayType;
+                    //vector<int>dims;
+                    dims.clear();
+                    dc_record.clear();
+                    for(auto & iter:it1->second){
+                        total*=((ConstantSymbolEntry*)(iter->getSymPtr()))->getValue();
+                        dims.push_back(((ConstantSymbolEntry*)(iter->getSymPtr()))->getValue());
+                        dc_record.push_back(0);
+                    }
+                }
+                it1++;
+            }
+            // cout<<"dims:";
+            // for(int i=0;i<dims.size();i++){
+            //     cout<<dims[i]<<' ';
+            // }
+            // cout<<endl;
+            //初始化init_
+            init_[init_array].clear();
+            while(total>0){
+                init_[init_array].push_back(nullptr);
+                total--;
+            }
+        }
+        // else{
+        //     //l_br--;
+        // }
+        l_br++;
+    } RBRACE{
+        l_br--;
+        if(l_br>=0){
+            dc_record[l_br]++;
+        }
+        //cout<<"rbr"<<l_br<<" "<<endl;
+        for(int i=l_br+1;i<dc_record.size();i++){
+            dc_record[i]=0;
+        }
+        if(l_br==-1){
+            dc_record.clear();
+        }
+    }
+    |
+    LBRACE {
+        //最开始
+        if(l_br==-1){
+            std::map <std::string, vector<ExprNode*>>::iterator it1=arraylist.begin();
+            //初始化dims和dc_record
+            //一定要while循环 因为里面有可能有很多个数组id（但是未初始化的目标数组只有一个）
+            int total=1;//计算一共有多少元素
+            while(it1!=arraylist.end()){
+                if(!identifiers->lookup(it1->first)||((IdentifierSymbolEntry*)(identifiers->lookup(it1->first)))->getScope()!=identifiers->getLevel()){
+                    init_array=it1->first;
+                    Type* arrayType;
+                    //vector<int>dims;
+                    dims.clear();
+                    dc_record.clear();
+                    for(auto & iter:it1->second){
+                        total*=iter->getSymPtr()->get_value();
+                        dims.push_back(iter->getSymPtr()->get_value());
+                        dc_record.push_back(0);
+                    }
+                    cout<<"total:"<<total<<endl;
+                }
+                else{
+                    cout<<"scope:"<<((IdentifierSymbolEntry*)(identifiers->lookup(it1->first)))->getScope()<<endl;
+                    cout<<"now scope:"<<identifiers->getLevel()<<endl;
+                }
+                it1++;
+            }
+            cout<<"------------init_array:"<<init_array<<endl;
+            // cout<<"dims:";
+            // for(int i=0;i<dims.size();i++){
+            //     cout<<dims[i]<<' ';
+            // }
+            // cout<<endl;
+            //初始化init_
+            init_[init_array].clear();
+            while(total>0){
+                init_[init_array].push_back(nullptr);
+                total--;
+            }
+            cout<<"init_ size:"<<init_[init_array].size()<<endl;
+        }
+        l_br++;
+    }
+    BRACEList RBRACE
     {
-        //cout<<"hi array"<<endl;
-        arraylist[$1]=$3;
+        l_br--;
+        cout<<"dc_record:";
+        for(auto& r:dc_record){
+            cout<<r<<", ";
+        }
+        cout<<endl;
+        if(l_br>=0){
+            bool f=false;
+            for(int x=l_br+1;x<dc_record.size();x++){
+                if(dc_record[x]!=0){
+                    f=true;
+                    break;
+                }
+            }
+            if(f){
+                dc_record[l_br]++;
+            }
+        }
+        //cout<<"rbr"<<l_br<<" "<<endl;
+        for(int i=l_br+1;i<dc_record.size();i++){
+            dc_record[i]=0;
+        }
+        if(l_br==-1){
+            dc_record.clear();
+        }
+    }
+    ;
+BRACEList
+    :
+    BRACEUnit{
+        //dc_record.back()++;
+    }
+    |
+    BRACEList COMMA BRACEUnit{
+        // cout<<"comma lbr:"<<l_br<<endl;
+        // if(dc_record.back()+1==dims.back()){
+        //     // dc_record[l_br-1]++;
+        //     // dc_record.back()=0;
+        //     int i=dc_record.size()-1;
+        //     //进位
+        //     while(i>=0){
+        //         dc_record[i]=0;
+        //         if(dc_record[i-1]+1==dims[i-1]){
+        //             i--;
+        //             continue;
+        //         }
+        //         else{
+        //             dc_record[i-1]++;
+        //             break;
+        //         }
+        //         i--;
+        //     }
+        //     if(i==l_br)
+        //         dc_record[i-1]--;
+        // }
+        // else
+        //     dc_record.back()++;
     }
     ;
 IDList
@@ -856,7 +1117,12 @@ IDList
         idlist[$1]=$3;
     }
     |
-    Array COMMA{
+    ARRAY COMMA{
+
+    }
+    |
+    ARRAY ASSIGN BRACEUnit COMMA{
+
     }
     |
     IDList ID COMMA{
@@ -867,7 +1133,11 @@ IDList
         idlist[$2]=$4;
     }
     |
-    IDList Array COMMA{
+    IDList ARRAY COMMA{
+        
+    }
+    |
+    IDList ARRAY ASSIGN BRACEUnit COMMA{
         
     }
     |
@@ -881,7 +1151,11 @@ IDList
         idlist[$2]=$4;
     }
     |
-    IDList Array {
+    IDList ARRAY {
+        
+    }
+    |
+    IDList ARRAY ASSIGN BRACEUnit {
         
     }
     ;
@@ -896,10 +1170,11 @@ DeclStmt
         {
             cout<<"line:"<<yylineno+1<<endl;
             fprintf(stderr, "identifier \"%s\" is redefined\n", (char*)$2);
-            assert(se == nullptr);
+            //assert(se == nullptr);
         }
-        //se = 
+
         se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
+        
         identifiers->install($2, se);
         DeclStmt* tmp = new DeclStmt();
         tmp->insert(new Id(se));
@@ -931,6 +1206,10 @@ DeclStmt
         }
 
         se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
+        //if($1->isConst()){
+        se->set_value($4->getSymPtr()->get_value());
+        //}
+
         identifiers->install($2, se);
         DeclStmt* tmp = new DeclStmt();
         tmp->insert(new Id(se),$4);
@@ -938,22 +1217,71 @@ DeclStmt
         delete []$2;
     }
     |
-    Type Array SEMICOLON{
+    Type ARRAY SEMICOLON{
         //处理数组声明
-        std::map <std::string, int>::iterator it1=arraylist.begin();
+                std::map <std::string, vector<ExprNode*>>::iterator it1=arraylist.begin();
         SymbolEntry *se1;
         DeclStmt* tmp = new DeclStmt();
         while(it1!=arraylist.end()){
             // cout<<it->first<<endl;
             Type* arrayType;
-            arrayType=new ArrayType($1, it1->second);
+            //vector<int>dims;
+            dims.clear();
+            for(auto & iter:it1->second){
+                //dims.push_back(((ConstantSymbolEntry*)(iter->getSymPtr()))->getValue());
+                dims.push_back(iter->getSymPtr()->get_value());
+            }
+            arrayType=new ArrayType($1, dims);
             se1 = new IdentifierSymbolEntry(arrayType, it1->first, identifiers->getLevel());
-            identifiers->install(it1->first, se1);
-            tmp->insert(new Id(se1));
+            if(!identifiers->lookup(it1->first)||((IdentifierSymbolEntry*)(identifiers->lookup(it1->first)))->getScope()!=identifiers->getLevel()){
+                identifiers->install(it1->first, se1);
+                
+                vector<ExprNode*> newv;
+                tmp->insert_array(new Id(se1), newv);
+            }
             it1++;
         }
         $$ = tmp;
         arraylist.clear();
+        init_.clear();
+    }
+    |
+    Type ARRAY ASSIGN BRACEUnit SEMICOLON{
+        cout<<endl;
+        cout<<"array assign??"<<endl;
+        //处理数组声明
+        std::map <std::string, vector<ExprNode*>>::iterator it1=arraylist.begin();
+        SymbolEntry *se1;
+        DeclStmt* tmp = new DeclStmt();
+        
+        while(it1!=arraylist.end()){
+            // cout<<it->first<<endl;
+            //cout<<it1->first<<" installed??"<<endl;
+            if(!identifiers->lookup(it1->first)||((IdentifierSymbolEntry*)(identifiers->lookup(it1->first)))->getScope()!=identifiers->getLevel()){
+                Type* arrayType;
+                //vector<int>dims;
+                dims.clear();
+                //dc_record.clear();
+                for(auto & iter:it1->second){
+                    //dims.push_back(((ConstantSymbolEntry*)(iter->getSymPtr()))->getValue());
+                    //dc_record.push_back(0);
+                    dims.push_back(iter->getSymPtr()->get_value());
+                }
+                arrayType=new ArrayType($1, dims);
+                se1 = new IdentifierSymbolEntry(arrayType, it1->first, identifiers->getLevel());           
+
+                identifiers->install(it1->first, se1);
+                tmp->insert_array(new Id(se1), init_[it1->first]);
+                //cout<<it1->first<<" installed!!"<<endl;
+            }
+            //cout<<(identifiers->lookup(it1->first)==nullptr)<<endl;
+            it1++;
+        }
+        $$ = tmp;
+        arraylist.clear();
+        dc_record.clear();
+        init_.clear();
+        l_br=-1;
     }
     |
     Type IDList SEMICOLON {
@@ -966,27 +1294,41 @@ DeclStmt
         while(it!=idlist.end()){
             // cout<<it->first<<endl;
             se = new IdentifierSymbolEntry($1, it->first, identifiers->getLevel());
+            if(it->second){
+                se->set_value(it->second->getSymPtr()->get_value());
+            }
             identifiers->install(it->first, se);
             tmp->insert(new Id(se), it->second);
             it++;
         }
 
         //处理数组声明
-        std::map <std::string, int>::iterator it1=arraylist.begin();
+        std::map <std::string, vector<ExprNode*>>::iterator it1=arraylist.begin();
         SymbolEntry *se1;
         while(it1!=arraylist.end()){
-            // cout<<it->first<<endl;
+            cout<<"---------------------"<<it1->first<<endl;
+            cout<<it1->second.size()<<endl;
             Type* arrayType;
-            arrayType=new ArrayType($1, it1->second);
+            // vector<int>dims;
+            dims.clear();
+            for(auto & iter:it1->second){
+                //dims.push_back(((ConstantSymbolEntry*)(iter->getSymPtr()))->getValue());
+                cout<<"value:"<<iter->getSymPtr()->get_value()<<endl;
+                dims.push_back(iter->getSymPtr()->get_value());
+            }
+            arrayType=new ArrayType($1, dims);
             se1 = new IdentifierSymbolEntry(arrayType, it1->first, identifiers->getLevel());
-            identifiers->install(it1->first, se1);
-            tmp->insert(new Id(se1));
+            if(!identifiers->lookup(it1->first)){
+                identifiers->install(it1->first, se1);
+                tmp->insert_array(new Id(se1), init_[it1->first]);
+            }
             it1++;
         }
 
         $$ = tmp;
         idlist.clear();//存完以后清空
         arraylist.clear();
+        init_.clear();
         //delete []$2;
     }
     ;
@@ -998,14 +1340,18 @@ ParamDefs:
         paramsymbols.push_back($2);
     }
     |
-    Type ID LBRACKET INTEGER RBRACKET{        
-        paramtypes.push_back(new ArrayType($1, $4));
-        paramsymbols.push_back($2);
-    }
-    |
-    Type ID LBRACKET RBRACKET{        
-        paramtypes.push_back(new ArrayType($1));
-        paramsymbols.push_back($2);
+    Type ARRAY{       
+        vector<int> emp;
+        for(auto & exp:arraylist[curr_array.back()]){
+            int val=0;
+            if(exp){
+                val=exp->getSymPtr()->get_value();
+            }
+            emp.push_back(val);
+        }
+        paramtypes.push_back(new ArrayType($1, emp));
+        paramsymbols.push_back(curr_array.back());
+        arraylist.erase(curr_array.back());
     }
     |
     ParamDefs COMMA Type ID{
@@ -1013,14 +1359,21 @@ ParamDefs:
         paramsymbols.push_back($4);
     }
     |
-    ParamDefs COMMA Type ID LBRACKET INTEGER RBRACKET{
-        paramtypes.push_back(new ArrayType($3, $6));
-        paramsymbols.push_back($4);
-    }
-    |
-    ParamDefs COMMA Type ID LBRACKET RBRACKET{
-        paramtypes.push_back(new ArrayType($3));
-        paramsymbols.push_back($4);
+    ParamDefs COMMA Type ARRAY{
+        vector<int> emp;
+        for(auto & exp:arraylist[curr_array.back()]){
+            int val=0;
+            if(exp){
+                val=exp->getSymPtr()->get_value();
+            }
+            emp.push_back(val);
+        }
+        paramtypes.push_back(new ArrayType($3, emp));
+        paramsymbols.push_back(curr_array.back());
+        arraylist.erase(curr_array.back());
+
+        // paramtypes.push_back($3);
+        // paramsymbols.push_back($4);
     }
     ;
 FuncDef
@@ -1102,6 +1455,8 @@ FuncDef
         paramsymbols.clear();
         delete top;
         delete []$2;
+        
+        cout<<"def end??"<<endl;
     }
     |
     Type ID 

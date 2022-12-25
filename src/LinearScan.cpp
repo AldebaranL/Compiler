@@ -27,6 +27,7 @@ void LinearScan::allocateRegisters()
                 genSpillCode();
             }
         }
+        cout<<"success??---- "<<success<<endl;
     }
 }
 
@@ -178,14 +179,18 @@ bool LinearScan::linearScanRegisterAllocation()
         expireOldIntervals(interval);
         if(regs.empty()){
             //return false;
+            spillAtInterval(interval);
             success=false;
+            // break;//不能break，还要继续
         }
-        interval->rreg = regs.front();//分配寄存器
-        activelist.push_back(interval);
-        //cout<<"interval->rreg:"<<interval->rreg<<endl;
-        regs.erase(regs.begin());
-        //必须要在里面sort，因为每次循环expireOldIntervals会默认activelist已排序
-        sort(activelist.begin(), activelist.end(), compareEnd);
+        else{
+            interval->rreg = regs.front();//分配寄存器
+            activelist.push_back(interval);
+            //cout<<"interval->rreg:"<<interval->rreg<<endl;
+            regs.erase(regs.begin());
+            //必须要在里面sort，因为每次循环expireOldIntervals会默认activelist已排序
+            sort(activelist.begin(), activelist.end(), compareEnd);
+        }
     }
     cout<<"success?"<<success<<endl;
     return success;
@@ -205,16 +210,57 @@ void LinearScan::modifyCode()
 
 void LinearScan::genSpillCode()
 {
-    for(auto &interval:intervals)
-    {
-        if(!interval->spill)
+    for (auto& interval : intervals) {
+        if (!interval->spill)
             continue;
-        // TODO
         /* HINT:
          * The vreg should be spilled to memory.
          * 1. insert ldr inst before the use of vreg
          * 2. insert str inst after the def of vreg
-         */ 
+         */
+        interval->disp = -func->AllocSpace(4);//记录溢出的栈偏移
+        cout<<"interval->disp:"<<interval->disp<<endl;
+        auto off = new MachineOperand(MachineOperand::IMM, interval->disp);
+        auto fp = new MachineOperand(MachineOperand::REG, 11);
+
+        //uselist: insert LoadM
+        for (auto use : interval->uses) {
+            auto temp = new MachineOperand(*use);
+            MachineOperand* operand = nullptr;
+            if (interval->disp > 255 || interval->disp < -255) {
+                operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
+                auto inst1 =new LoadMInstruction(use->getParent()->getParent(),operand, off);
+                use->getParent()->insertBefore(inst1);
+            }
+            if (operand) {
+                auto inst = new LoadMInstruction(use->getParent()->getParent(),temp, fp, new MachineOperand(*operand));
+                use->getParent()->insertBefore(inst);
+            } else {
+                auto inst = new LoadMInstruction(use->getParent()->getParent(),temp, fp, off);
+                use->getParent()->insertBefore(inst);
+            }
+        }
+
+        //deflist: insert StoreM
+        for (auto def : interval->defs) {
+            auto temp = new MachineOperand(*def);
+            MachineOperand* operand = nullptr;
+            MachineInstruction *inst1 = nullptr, *inst = nullptr;
+            if (interval->disp > 255 || interval->disp < -255) {
+                operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
+                inst1 = new LoadMInstruction(def->getParent()->getParent(),operand, off);
+                def->getParent()->insertAfter(inst1);
+            }
+            if (operand) {
+                inst = new StoreMInstruction(def->getParent()->getParent(), temp, fp, new MachineOperand(*operand));
+            } else {
+                inst = new StoreMInstruction(def->getParent()->getParent(),temp,fp, off);
+            }
+            if (inst1)
+                inst1->insertAfter(inst);
+            else
+                def->getParent()->insertAfter(inst);
+        }
     }
 }
 

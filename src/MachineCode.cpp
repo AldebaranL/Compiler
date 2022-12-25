@@ -1,9 +1,22 @@
 #include "MachineCode.h"
 
 #include <iostream>
+#include<string.h>
 using namespace std;
 
 extern FILE* yyout;
+
+void MachineInstruction::insertBefore(MachineInstruction* inst) {
+    auto& instructions = parent->getInsts();
+    auto it = std::find(instructions.begin(), instructions.end(), this);
+    instructions.insert(it, inst);
+}
+
+void MachineInstruction::insertAfter(MachineInstruction* inst) {
+    auto& instructions = parent->getInsts();
+    auto it = std::find(instructions.begin(), instructions.end(), this);
+    instructions.insert(++it, inst);
+}
 
 MachineOperand::MachineOperand(int tp, int val)
 {
@@ -209,7 +222,7 @@ void BinaryMInstruction::output()
 
 LoadMInstruction::LoadMInstruction(MachineBlock* p,
     MachineOperand* dst, MachineOperand* src1, MachineOperand* src2,
-    int cond)
+    int cond, bool bp)
 {
     this->parent = p;
     this->type = MachineInstruction::LOAD;
@@ -217,6 +230,7 @@ LoadMInstruction::LoadMInstruction(MachineBlock* p,
     this->cond = cond;
     this->def_list.push_back(dst);
     this->use_list.push_back(src1);
+    this->bp=bp;
     if (src2)
         this->use_list.push_back(src2);
     dst->setParent(this);
@@ -516,14 +530,24 @@ void MachineBlock::output()
         // cout<<"-----------inst?"<<(inst==nullptr)<<endl;
         // cout<<"isBinary?"<<inst->isBinary()<<endl;
         // cout<<"isbp?"<<((BinaryMInstruction*)inst)->isbp()<<endl;
-        if(inst->isBinary()&&((BinaryMInstruction*)inst)->isbp()){
-            //说明是return语句的add sp
+        if(inst->isLoad()&&((LoadMInstruction*)inst)->isbp()){
+            //说明是return语句的add sp  需要重填
             cout<<"?????"<<parent->AllocSpace(0)<<endl;
-            ((BinaryMInstruction*)inst)->set_src2(new MachineOperand(MachineOperand::IMM, parent->AllocSpace(0)));
+            ((LoadMInstruction*)inst)->set_src1(new MachineOperand(MachineOperand::IMM, parent->AllocSpace(0)));
         }
         if(inst->isStack()&&((StackMInstructon*)inst)->isPOP()){
             //说明是return语句的add sp
             ((StackMInstructon*)inst)->addSrc(parent->src_list);
+        }
+        if(inst->isLoad()&&find(parent->stack_list.begin(),parent->stack_list.end(),inst)!=parent->stack_list.end()){
+            //说明是载参数的ldr语句，需要根据saved_regs的个数重写
+            cout<<"*****************isLoad!!!"<<endl;
+            cout<<"num_SavedRegs():"<<parent->num_SavedRegs()<<endl;
+            int base=parent->num_SavedRegs()*4+8;
+            auto f=find(parent->stack_list.begin(),parent->stack_list.end(),inst);
+            int d=distance(parent->stack_list.begin(), f);
+            int loc=d*4+base;
+            ((LoadMInstruction*)inst)->set_src2(new MachineOperand(MachineOperand::IMM, loc));
         }
         // cout<<"count: "<<count<<endl;
         inst->output();
@@ -536,10 +560,12 @@ void MachineBlock::output()
 
 void MachineFunction::output()
 {
-    const char *func_name = this->sym_ptr->toStr().c_str() + 1;//what???
-    fprintf(yyout, "\t.global %s\n", func_name);
-    fprintf(yyout, "\t.type %s , %%function\n", func_name);
-    fprintf(yyout, "%s:\n", func_name);
+    cout<<"#################Machine Fucntion######################"<<endl;
+    string func_name = (const char*)(this->sym_ptr->toStr().c_str()) + 1;//what???
+    cout<<func_name<<endl;
+    fprintf(yyout, "\t.global %s\n", func_name.c_str());
+    fprintf(yyout, "\t.type %s , %%function\n", func_name.c_str());
+    fprintf(yyout, "%s:\n", func_name.c_str());
     // TODO
     /* Hint:
     *  1. Save fp
@@ -566,8 +592,10 @@ void MachineFunction::output()
         off = AllocSpace(4);
     }
     if (off) {
-        auto size = new MachineOperand(MachineOperand::IMM, off);       
-        (new BinaryMInstruction(nullptr, BinaryMInstruction::SUB, sp, sp, size))->output();
+        auto size = new MachineOperand(MachineOperand::IMM, off);  
+        auto temp= new MachineOperand(MachineOperand::REG, 4);
+        (new LoadMInstruction(nullptr, temp, size))->output();
+        (new BinaryMInstruction(nullptr, BinaryMInstruction::SUB, sp, sp, temp))->output();
     }
 
     for(auto iter : block_list)
@@ -578,21 +606,21 @@ void MachineUnit::PrintGlobalDecl()
 {
     // TODO:
     // You need to print global variable/const declarition code;
-    if (!global_dst.empty())
+    if (!global_dst.empty()||!arr_global_dst.empty())
         fprintf(yyout, "\t.data\n");
     
-    for(int i=0;i<(int)(global_dst.size());i++){
-        const char * name=((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str()+1;
+    for(int i=global_dst.size()-1;i>=0;i--){
+        string name=(const char*)(((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str())+1;
         int size=((IntType*)(global_dst[i]->getType()))->getSize()/8;
         
         if(global_dst[i]->getType()->isConst()){
             fprintf(yyout, "\t.section .rodata\n");
         }
         //cout<<"name????????"<<name<<endl;???为什么??????????
-        fprintf(yyout, "\t.global %s\n", name);
+        fprintf(yyout, "\t.global %s\n", name.c_str());
         fprintf(yyout, "\t.align 4\n");
-        fprintf(yyout, "\t.size %s, %d\n", name, size);
-        fprintf(yyout, "%s:\n", name);
+        fprintf(yyout, "\t.size %s, %d\n", name.c_str(), size);
+        fprintf(yyout, "%s:\n", name.c_str());
         
         string val;
         if(global_src[i]&&global_src[i]->isConstant()){
@@ -604,11 +632,53 @@ void MachineUnit::PrintGlobalDecl()
 
         fprintf(yyout, "\t.word %s\n", val.c_str());
     }
+    for(int i=0;i<(int)(arr_global_dst.size());i++){
+        string name=(const char*)(((IdentifierSymbolEntry*)(arr_global_dst[i]))->toStr().c_str())+1;
+        vector<int>dims=((ArrayType*)(arr_global_dst[i]->getType()))->get_dims();
+        int size=1;
+        for(auto &dim:dims){
+            size*=dim;
+        }
+        size*=4;
+        
+        if(((ArrayType*)(arr_global_dst[i]->getType()))->gettype()->isConst()){
+            fprintf(yyout, "\t.section .rodata\n");
+        }
+        //cout<<"name????????"<<name<<endl;???为什么??????????
+        
+        string val;
+        if(arr_global_src[i].empty()){
+            
+            fprintf(yyout, "\t.comm %s, %d, 4 \n", name.c_str(), size);
+            continue;
+        }
+        fprintf(yyout, "\t.global %s\n", name.c_str());
+        fprintf(yyout, "\t.align 4\n");
+        fprintf(yyout, "\t.size %s, %d\n", name.c_str(), size);
+        fprintf(yyout, "%s:\n", name.c_str());
+        for(auto& arr_gs:arr_global_src[i]){
+            if(arr_gs&&arr_gs->isConstant()){
+                val=arr_gs->toStr();
+            }
+            else{
+                val="0";
+            }
+            fprintf(yyout, "\t.word %s\n", val.c_str());
+        }
+
+        
+    }
 }
 void MachineUnit::PrintGlobalEnd()
 {
     for(int i=0;i<(int)(global_dst.size());i++){
         const char * name=((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str()+1;
+        
+        fprintf(yyout, "addr_%s:\n", name);
+        fprintf(yyout, "\t.word %s\n", name);
+    }
+    for(int i=0;i<(int)(arr_global_dst.size());i++){
+        const char * name=((IdentifierSymbolEntry*)(arr_global_dst[i]))->toStr().c_str()+1;
         
         fprintf(yyout, "addr_%s:\n", name);
         fprintf(yyout, "\t.word %s\n", name);

@@ -83,6 +83,9 @@ public:
 
     bool isBinary(){return type==BINARY;};
     bool isStack(){return type==STACK;};
+    bool isLoad(){return type==LOAD;};
+    void insertBefore(MachineInstruction* inst);
+    void insertAfter(MachineInstruction* inst);
 };
 
 class BinaryMInstruction : public MachineInstruction
@@ -102,11 +105,15 @@ public:
 
 class LoadMInstruction : public MachineInstruction
 {
+    bool bp;
 public:
     LoadMInstruction(MachineBlock* p,
                     MachineOperand* dst, MachineOperand* src1, MachineOperand* src2 = nullptr, 
-                    int cond = MachineInstruction::NONE);
+                    int cond = MachineInstruction::NONE, bool bp=false);
     void output();
+    void set_src1(MachineOperand* newsrc1){use_list[0]=newsrc1;};
+    void set_src2(MachineOperand* newsrc2){use_list[1]=newsrc2;};
+    bool isbp(){return bp;};
 };
 
 class StoreMInstruction : public MachineInstruction
@@ -211,6 +218,7 @@ private:
     SymbolEntry* sym_ptr;
 public:
     vector<MachineOperand*> src_list;
+    vector<MachineInstruction*> stack_list;
 
 public:
     std::vector<MachineBlock*>& getBlocks() {return block_list;};
@@ -226,6 +234,7 @@ public:
     int getSize(){return this->stack_size; };
     void InsertBlock(MachineBlock* block) { this->block_list.push_back(block); };
     void addSavedRegs(int regno) {saved_regs.insert(regno);};
+    int num_SavedRegs(){return saved_regs.size();};
     void output();
 };
 
@@ -238,6 +247,9 @@ private:
 public:
     std::vector<SymbolEntry*> global_dst;
     std::vector<SymbolEntry*> global_src;
+
+    std::vector<SymbolEntry*> arr_global_dst;
+    std::vector<vector<SymbolEntry*>> arr_global_src;
 public:
     std::vector<MachineFunction*>& getFuncs() {return func_list;};
     std::vector<MachineFunction*>::iterator begin() { return func_list.begin(); };

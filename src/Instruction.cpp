@@ -8,6 +8,13 @@ using namespace std;
 
 extern FILE* yyout;
 
+Operand* last_hit=nullptr;
+MachineOperand* last_loc=nullptr;
+
+map<MachineFunction*,MachineOperand*> tmp_space;
+
+vector<MachineInstruction*> addition_list;
+
 Instruction::Instruction(unsigned instType, BasicBlock *insert_bb)
 {
     prev = next = this;
@@ -385,7 +392,7 @@ void CallInstruction::output() const{
 };
 
 //global
-GlobalInstruction::GlobalInstruction(Operand *dst, Operand *src, BasicBlock *insert_bb) : Instruction(GLOBAL, insert_bb)
+GlobalInstruction::GlobalInstruction(Operand *dst, Operand *src, BasicBlock *insert_bb, string global_arr) : Instruction(GLOBAL, insert_bb)
 {
     operands.push_back(dst);
     dst->setDef(this);   
@@ -394,6 +401,7 @@ GlobalInstruction::GlobalInstruction(Operand *dst, Operand *src, BasicBlock *ins
         operands.push_back(src);
         src->setDef(this);
     }
+    this->global_arr=global_arr;
 }
 
 GlobalInstruction::~GlobalInstruction()
@@ -406,13 +414,23 @@ GlobalInstruction::~GlobalInstruction()
 void GlobalInstruction::output() const
 {
     string dst = operands[0]->toStr();
-    string type = operands[0]->getType()->toStr();
-    if(operands.size()>1){
-        string src=operands[1]->toStr();
-        fprintf(yyout, "%s = global %s %s, align 4\n", dst.c_str(), type.c_str(), src.c_str());
+    string type = ((operands[1]->getType()))->toStr();
+    if(global_arr=="zero"){
+        type = ((PointerType*)((operands[0]->getType())))->get_valueType()->toStr();
+        fprintf(yyout, "%s = global %s zeroinitializer, align 4\n", dst.c_str(), type.c_str());
+    }
+    else if(global_arr!=""){
+        fprintf(yyout, "%s = global %s, align 4\n", dst.c_str(), global_arr.c_str());
     }
     else{
-        fprintf(yyout, "%s = global %s, align 4\n", dst.c_str(), type.c_str());
+        if(operands.size()>1){
+            string src=operands[1]->toStr();
+            //type = operands[1]->getType()->toStr();
+            fprintf(yyout, "%s = global %s %s, align 4\n", dst.c_str(), type.c_str(), src.c_str());
+        }
+        else{
+            fprintf(yyout, "%s = global %s, align 4\n", dst.c_str(), type.c_str());
+        }
     }
 }
 
@@ -445,18 +463,24 @@ void TypefixInstruction::output() const
 }
 
 //数组
-ArrayItemFetchInstruction::ArrayItemFetchInstruction(Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb, bool f, Operand* addr) : Instruction(ARRAYITEMFETCH, insert_bb)
+ArrayItemFetchInstruction::ArrayItemFetchInstruction(Operand* tag, Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb, bool f, Operand* addr) : Instruction(ARRAYITEMFETCH, insert_bb)
 {
     this->size = size;
     this->type = type;
     this->f = f;
-    this->addr=addr;
+    this->tag=tag;
+    this->param_flag=false;
+    this->param_addr=nullptr;
+    this->memset_flag=false;
     operands.push_back(dst_addr);//一个temp
     operands.push_back(item_addr);
     operands.push_back(offset);
-    dst_addr->addUse(this);
-    item_addr->addUse(this);
-    offset->addUse(this);
+    //if(dst_addr)
+        dst_addr->addUse(this);
+    //if(item_addr)
+        item_addr->addUse(this);
+    //if(offset)
+        offset->addUse(this);
 }
 
 ArrayItemFetchInstruction::~ArrayItemFetchInstruction()
@@ -468,7 +492,9 @@ ArrayItemFetchInstruction::~ArrayItemFetchInstruction()
 
 void ArrayItemFetchInstruction::output() const
 {
-    //cout<<"--------------------------------------------hi alloca"<<endl;
+    if(memset_flag){
+        return;
+    }
     std::string dst = operands[0]->toStr();
     std::string offset = operands[2]->toStr();
     std::string dst_type = operands[0]->getType()->toStr();
@@ -481,6 +507,9 @@ void ArrayItemFetchInstruction::output() const
     std::string item_type = operands[1]->getType()->toStr();
 
     std::string array_type=type->toStr();
+    if(param_flag){
+        return;
+    }
 
     if(!f){
         fprintf(yyout, "  %s = getelementptr inbounds %s, %s %s, i32 0, %s %s\n", dst.c_str(), array_type.c_str(), item_type.c_str(), item.c_str(), offset_type.c_str(), offset.c_str());
@@ -543,20 +572,26 @@ void AllocaInstruction::genMachineCode(AsmBuilder* builder)
     int offset;
     if(se->getType()->isArray()){
         cout<<"isArray!"<<endl;
-        cout<<"size:"<<((ArrayType*)(se->getType()))->getsize()<<endl;
-        int size=((ArrayType*)(se->getType()))->getsize();
-        if(((ArrayType*)(se->getType()))->gettype()->isInt()){
-            if(size==-1)
-                offset=cur_func->AllocSpace(4);
-            else
-                offset=cur_func->AllocSpace(4*((ArrayType*)(se->getType()))->getsize());
+        int size=1;
+        vector<int>dims=((ArrayType*)(se->getType()))->get_dims();
+        cout<<"dims_size:"<<dims.size()<<endl;
+        if(dims[0]!=0){
+            for(auto &dim:dims){
+                size*=dim;
+            }
         }
+        cout<<"size:"<<size<<endl;
+        //if(((ArrayType*)(se->getType()))->gettype()->isInt()){
+        if(dims[0]==0)
+            offset=cur_func->AllocSpace(4);
+        else
+            offset=cur_func->AllocSpace(4*size);
+        //}
     }
     else{
         offset = cur_func->AllocSpace(4);
     }
-    cout<<"1:"<<operands[0]->getEntry()<<endl;
-    cout<<"2:"<<se<<endl;
+    cout<<"offset:"<<offset<<endl;
     dynamic_cast<TemporarySymbolEntry*>(operands[0]->getEntry())->setOffset(-offset);
 
 }
@@ -612,6 +647,7 @@ void StoreInstruction::genMachineCode(AsmBuilder* builder)
     cout<<"StoreInstruction~!"<<endl;
     // TODO
     auto cur_block = builder->getBlock();
+    auto cur_func=builder->getBlock()->getParent();
     MachineInstruction* cur_inst = nullptr;
 
     auto src = genMachineOperand(operands[1]);
@@ -622,9 +658,24 @@ void StoreInstruction::genMachineCode(AsmBuilder* builder)
     auto f=find(func->op.begin(), func->op.end(), operands[1]);
     //cout<<"========isparam??"<<(distance(func->op.begin(), f))<<endl;
     
+    int dt=distance(func->op.begin(), f);
     if(find(func->op.begin(), func->op.end(), operands[1])!=func->op.end()){
         //distance是推断第几个参数
-        src=new MachineOperand(MachineOperand::REG, distance(func->op.begin(), f));
+        if(dt<4){
+            src=new MachineOperand(MachineOperand::REG, dt);
+        }
+        else{
+            src=new MachineOperand(MachineOperand::REG, 3);
+            auto fp=genMachineReg(11);
+            //stack_off实际上还不能确定。。还是得回填
+            auto stack_off=genMachineImm((dt-4)*4+8);
+            auto src2 = genMachineImm(((TemporarySymbolEntry*)(operands[0]->getEntry()))->getOffset());
+            auto stackinst=new LoadMInstruction(cur_block, src, fp, stack_off);
+            cur_block->InsertInst(stackinst);
+            cur_func->stack_list.push_back(stackinst);
+            cur_block->InsertInst(new StoreMInstruction(cur_block, src, fp, src2));
+            return;
+        }
     }
     
     // Load global operand
@@ -869,8 +920,9 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     * 1. Generate mov instruction to save return value in r0
     * 2. Restore callee saved registers and sp, fp
     * 3. Generate bx instruction */
-   //存返回值
     auto cur_block = builder->getBlock();
+
+   //存返回值
     if(operands.size()>0){
         MachineOperand* r0 = new MachineOperand(MachineOperand::REG, 0);//0号寄存器
         MachineOperand* src = genMachineOperand(operands[0]);
@@ -882,7 +934,9 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
     cout<<cur_func->AllocSpace(0)<<endl;
     auto size = new MachineOperand(MachineOperand::IMM, cur_func->AllocSpace(0));
-    MachineInstruction* add_sp = new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, size, true);//bp置位！
+    auto temp=genMachineVReg();
+    cur_block->InsertInst(new LoadMInstruction(cur_block, temp, size, nullptr, MachineInstruction::NONE, true));
+    MachineInstruction* add_sp = new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, temp);//bp置位！
     cur_block->InsertInst(add_sp);
 
     //对称pop
@@ -902,7 +956,7 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
 
 void CallInstruction::genMachineCode(AsmBuilder* builder)
 {
-    cout<<"CallInstruction~!"<<endl;
+    cout<<"--------------------------------------------CallInstruction~!"<<endl;
     //Todo
     //暂时只考虑参数<=4的情况。
     auto cur_block=builder->getBlock();
@@ -923,6 +977,47 @@ void CallInstruction::genMachineCode(AsmBuilder* builder)
         auto func_dst=new MachineOperand(func_name, true);
         cur_inst=new BranchMInstruction(cur_block, BranchMInstruction::BL, func_dst);
         cur_block->InsertInst(cur_inst);
+        //mov r0 ..
+        auto ret_dst=genMachineOperand(operands[0]);
+        auto r0=new MachineOperand(MachineOperand::REG, 0);
+        cur_inst=new MovMInstruction(cur_block, MovMInstruction::MOV, ret_dst, r0);
+        cur_block->InsertInst(cur_inst);
+    }
+    else{
+        int c=0;
+        while(c<4){
+            auto reg=new MachineOperand(MachineOperand::REG, c);
+            cout<<vo[c]->getEntry()->toStr()<<endl;
+            auto param=genMachineOperand(vo[c]);
+            cur_inst=new MovMInstruction(cur_block, MovMInstruction::MOV, reg, param);
+            cur_block->InsertInst(cur_inst);
+            c++;
+        }
+
+        //push...
+        c=vo.size()-1;
+        while(c>3){
+            auto param=genMachineOperand(vo[c]);
+            cout<<vo[c]->getEntry()->toStr()<<endl;
+            vector<MachineOperand*> push_list;
+            push_list.push_back(param);
+            cur_block->InsertInst(new StackMInstructon(cur_block, StackMInstructon::PUSH, push_list));
+            c--;
+        }
+        
+        
+        //bl func
+        const char *func_name = names.c_str() + 1;
+        auto func_dst=new MachineOperand(func_name, true);
+        cur_inst=new BranchMInstruction(cur_block, BranchMInstruction::BL, func_dst);
+        cur_block->InsertInst(cur_inst);
+
+        //add sp, sp, #..
+        auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
+        auto push_num=genMachineImm((vo.size()-4)*4);
+        cur_inst=new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, push_num);
+        cur_block->InsertInst(cur_inst);
+
         //mov r0 ..
         auto ret_dst=genMachineOperand(operands[0]);
         auto r0=new MachineOperand(MachineOperand::REG, 0);
@@ -993,38 +1088,157 @@ void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)
 {
     cout<<"ArrayItemFetchInstruction~!"<<endl;
     auto cur_block=builder->getBlock();
-    MachineInstruction* cur_inst=nullptr;
-    auto dst=genMachineOperand(operands[0]);
-    auto offset=genMachineImm(dynamic_cast<TemporarySymbolEntry*>(operands[1]->getEntry())->getOffset());
-        
-    //计算item地址
-    auto size=genMachineImm(4);
-    auto temp2=genMachineVReg();
-    cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, temp2, size));
-    auto item_off=genMachineVReg();
-    auto off=genMachineOperand(operands[2]);//offset
-    if(operands[2]->getEntry()->isConstant()){
-        //cout<<"constant??"<<endl;
-        MachineOperand* tmp=genMachineVReg();
-        cur_inst = new LoadMInstruction(cur_block, tmp, off);
-        cur_block->InsertInst(cur_inst);
-        off=tmp;
-    }
-    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::MUL, item_off, temp2, off));
-
-    auto item_addr=genMachineVReg();
-    //计算head
     auto temp1=genMachineVReg();
-    auto head=genMachineVReg();
     auto fp=new MachineOperand(MachineOperand::REG, 11);
-    if(!f){       
-        cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, offset));
-        cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, head, fp, temp1));
+    auto sp=new MachineOperand(MachineOperand::REG, 13);
+
+    if(memset_flag){
+        cout<<"memsetflag tested***************"<<endl;
+        vector<int>dims;
+        int total=1;
+        if(type->isArray()){
+            dims=((ArrayType*)type)->get_dims();
+            while(!dims.empty()){
+                total*=dims.front();
+                dims.erase(dims.begin());
+            }
+        }
+        cout<<"total:"<<total<<endl;
+        total*=4;
+        cout<<operands.size()<<endl;
+        auto loc=genMachineImm(((TemporarySymbolEntry*)(operands[0]->getEntry()))->getOffset());
+        cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, loc));
+        auto r0=genMachineReg(0);
+        auto r1=genMachineReg(1);
+        auto r2=genMachineReg(2);
+        auto init_val=genMachineImm(0);
+        auto range=genMachineImm(total);
+        cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, r0, fp, temp1));
+        cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, r1, init_val));
+        cur_block->InsertInst(new LoadMInstruction(cur_block, r2, range));
+        auto memset_dst=new MachineOperand("memset", true);
+        cur_block->InsertInst(new BranchMInstruction(cur_block, BranchMInstruction::BL, memset_dst));
+        return;
+    }
+
+
+
+    MachineInstruction* cur_inst=nullptr;
+
+    auto dst=genMachineOperand(operands[0]);
+    auto item=genMachineOperand(operands[1]);
+    auto offset=genMachineOperand(operands[2]);
+        MachineOperand* temp2;
+
+    bool flag=false;
+    auto loc=genMachineImm(((TemporarySymbolEntry*)(operands[1]->getEntry()))->getOffset());
+    
+    if(last_hit!=tag){
+        cout<<"miss!!"<<endl;
+
+        
+        temp2=genMachineVReg();
+        
+        
+        if(operands[1]->getEntry()->isVariable()
+        && dynamic_cast<IdentifierSymbolEntry*>(operands[1]->getEntry())->isGlobal()){
+            cout<<"global tested------------"<<endl;
+            cur_block->InsertInst(new LoadMInstruction(cur_block, temp2, item));
+        }
+        else if(param_flag){
+            cout<<"param_flag tested"<<endl;
+            temp2=item;
+        }
+        else{
+            flag=true;
+            cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, loc));
+            cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, temp2, fp, temp1));
+            //temp2存了数组首地址----
+        }
     }
     else{
-        offset=genMachineImm(dynamic_cast<TemporarySymbolEntry*>(this->addr->getEntry())->getOffset());
-        head = genMachineOperand(operands[1]);
+        cout<<"hit!!"<<endl;
+        temp2=last_loc;
     }
-    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, head, item_off));
+    //！！把temp2存到内存里，防止被改
+    auto curr_func=cur_block->getParent();
+    if(tmp_space.empty()||!tmp_space.count(curr_func)){   
+        int o=curr_func->AllocSpace(4);
+        tmp_space[curr_func]=genMachineImm(-1*o);
+    }
+    cur_block->InsertInst(new StoreMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
+    
+    //下面计算元素的具体地址
+    //一定是从大开始调到小
+    vector<int>dims;
+    int total=1;
+    if(type->isArray()){
+        dims=((ArrayType*)type)->get_dims();
+        dims.erase(dims.begin());
+        while(!dims.empty()){
+            total*=dims.front();
+            dims.erase(dims.begin());
+        }
+    }
+    auto temp3=genMachineVReg();
+    auto off=genMachineImm(total*4);
+    if(type->isArray()){
+        dims=((ArrayType*)type)->get_dims();
+        if(!dims.empty()&&last_hit!=tag&&param_flag){
+            off=genMachineImm(dims[0]*4);
+        }
+    }
+    //off目前是Imm，所以要加多一条mov
+    auto temp_off=genMachineVReg();
+    cur_block->InsertInst(new LoadMInstruction(cur_block, temp_off, off));
+    auto temp_offset=genMachineVReg();
+    if(offset->isImm()){
+        cur_block->InsertInst(new LoadMInstruction(cur_block, temp_offset, offset));
+    }
+    else{
+        temp_offset=offset;
+    }
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::MUL, temp3, temp_offset, temp_off));
+    
+    // if(flag){
+    //     cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, temp1, loc));
+    //     cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, temp2, fp, temp1));
+    // }
+
+    //从内存中加载temp2
+    cur_block->InsertInst(new LoadMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, temp2, temp3));
+    
+    last_hit=tag;
+    last_loc=dst;
+    // //计算item地址
+    // auto size=genMachineImm(4);
+    // auto temp2=genMachineVReg();
+    // cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, temp2, size));
+    // auto item_off=genMachineVReg();
+    // auto off=genMachineOperand(operands[2]);//offset
+    // if(operands[2]->getEntry()->isConstant()){
+    //     //cout<<"constant??"<<endl;
+    //     MachineOperand* tmp=genMachineVReg();
+    //     cur_inst = new LoadMInstruction(cur_block, tmp, off);
+    //     cur_block->InsertInst(cur_inst);
+    //     off=tmp;
+    // }
+    // cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::MUL, item_off, temp2, off));
+
+    // auto item_addr=genMachineVReg();
+    // //计算head
+    // auto temp1=genMachineVReg();
+    // auto head=genMachineVReg();
+    // auto fp=new MachineOperand(MachineOperand::REG, 11);
+    // if(!f){       
+    //     cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, offset));
+    //     cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, head, fp, temp1));
+    // }
+    // else{
+    //     offset=genMachineImm(dynamic_cast<TemporarySymbolEntry*>(this->addr->getEntry())->getOffset());
+    //     head = genMachineOperand(operands[1]);
+    // }
+    // cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, head, item_off));
 
 }

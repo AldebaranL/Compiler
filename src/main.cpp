@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
     //全局变量交接
     mUnit.global_dst=unit.global_dst;
     mUnit.global_src=unit.global_src;
+    mUnit.arr_global_dst=unit.arr_global_dst;
+    mUnit.arr_global_src=unit.arr_global_src;
 
     unit.genMachineCode(&mUnit);
     LinearScan linearScan(&mUnit);

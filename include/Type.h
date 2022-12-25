@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 
+using namespace std;
+
 class Type
 {
 private:
@@ -74,11 +76,14 @@ class ArrayType : public Type
 {
 private:
     Type *type;
-    int size;
 public:
-    ArrayType(Type* type, int size=-1) : Type(Type::ARRAY), type(type), size(size){};
+    vector<int> dims;
+public:
+    ArrayType(Type* type, vector<int> dims) : Type(Type::ARRAY), type(type), dims(dims){};
     Type* gettype(){return type;};
-    int getsize(){return size;}
+    void add_dim(int dim){dims.push_back(dim);};
+    vector<int> get_dims(){return dims;};
+    //int getsize(){return size;}
     std::string toStr();
     bool isInt(){return this->type->isInt();};
     //bool is_const();
@@ -92,6 +97,9 @@ private:
     bool isconst;
 public:
     PointerType(Type* valueType) : Type(Type::PTR) {this->valueType = valueType;};
+    Type* get_valueType(){
+        return valueType;
+    }
     std::string toStr();
     //bool is_const();
 };

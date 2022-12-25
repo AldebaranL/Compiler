@@ -158,8 +158,9 @@ public:
 //@a = dso_local global i32 3, align 4
 class GlobalInstruction : public Instruction
 {
+    string global_arr;
 public:
-    GlobalInstruction(Operand *dst, Operand* src, BasicBlock *insert_bb=nullptr);
+    GlobalInstruction(Operand *dst, Operand* src, BasicBlock *insert_bb=nullptr, string global_arr="");
     ~GlobalInstruction();
     void output() const;
     void genMachineCode(AsmBuilder*);
@@ -179,15 +180,28 @@ public:
 //取数组元素指令
 class ArrayItemFetchInstruction : public Instruction
 {
+    Operand* tag;
     int size;
     Type* type;
     bool f;
-    Operand* addr;
+    bool param_flag;
+    Operand* param_addr;
+    bool memset_flag;
 public:
-    ArrayItemFetchInstruction(Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb = nullptr, bool f=false, Operand* addr=nullptr);
+    ArrayItemFetchInstruction(Operand* tag, Type* type, Operand *dst_addr, Operand* item_addr, Operand *offset, BasicBlock *insert_bb = nullptr, bool f=false, Operand* addr=nullptr);
+    ArrayItemFetchInstruction(Type* array_type, Operand* addr, bool f, BasicBlock* insert_bb=nullptr):Instruction(ARRAYITEMFETCH, insert_bb),type(array_type),memset_flag(f){
+        operands.push_back(addr);
+        addr->addUse(this);
+    };
     ~ArrayItemFetchInstruction();
     void output() const;
     void genMachineCode(AsmBuilder*);
+    void set_paramFlag(bool f){this->param_flag=f;};
+    bool get_paramFlag(){return param_flag;};
+    void set_paramAddr(Operand* pd){param_addr=pd;};
+    Operand* get_paramAddr(){return param_addr;};
+    void set_memsetFlag(bool f){this->memset_flag=f;};
+    bool get_memsetFlag(){return memset_flag;};
 };
 
 

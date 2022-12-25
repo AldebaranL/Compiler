@@ -48,13 +48,23 @@ protected:
     SymbolEntry *symbolEntry;
     Operand *dst;   // The result of the subtree is stored into dst.
     int expr_type;//加一个枚举类型，为了区分id和arrayitem
+    int value;
+    
+    bool arr_flag;
 public:
-    ExprNode(SymbolEntry *symbolEntry, int expr_type=BASIC) : symbolEntry(symbolEntry), expr_type(expr_type){};//dst=new Operand(symbolEntry);
+    ExprNode(SymbolEntry *symbolEntry, int expr_type=BASIC) : symbolEntry(symbolEntry), expr_type(expr_type){
+        value=0;
+        arr_flag=false;
+    };//dst=new Operand(symbolEntry);
     Operand* getOperand() {return dst;};
     SymbolEntry* getSymPtr() {return symbolEntry;};
     bool isBasic(){return expr_type==BASIC;};
     bool isId(){return expr_type==ID;};
     bool isArray(){return expr_type==ARRAY;};
+    void set_value(int val){value=val;};
+    int get_value(){return value;};
+    void set_arrflag(bool f){arr_flag=f;};
+    bool get_arrflag(){return arr_flag;};
 };
 
 class BinaryExpr : public ExprNode
@@ -117,25 +127,30 @@ public:
 
 class ArrayItem : public ExprNode
 {
-    ExprNode* offset;//有可能是INTEGER，有可能是ID
-    Operand* head;
+   vector<ExprNode*> offsets;//有可能是INTEGER，有可能是ID
     bool f;
 public:
-    ArrayItem(SymbolEntry *se, ExprNode* offset, bool f=false) : ExprNode(se, ExprNode::ARRAY), offset(offset), f(f){
+    vector<Operand*> heads;
+public:
+    ArrayItem(SymbolEntry *se, vector<ExprNode*> offsets, bool f=false) : ExprNode(se, ExprNode::ARRAY), offsets(offsets), f(f){
         SymbolEntry *temp = new TemporarySymbolEntry(((ArrayType*)(se->getType()))->gettype(), SymbolTable::getLabel()); 
-        dst = new Operand(temp);
+        dst = new Operand(temp);//元素自己
 
-        Type* type = new PointerType(((ArrayType*)(this->getSymPtr()->getType()))->gettype());
-        SymbolEntry *tmp_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
-        //addr = iter->first->getOperand();//new Operand(addr_se);
-        head = new Operand(tmp_se);
+    // for(int i=0;i<this->offsets.size();i++){
+        //     Type* type = new PointerType(((ArrayType*)(this->getSymPtr()->getType()))->gettype());//数组元素的类型
+        //     SymbolEntry *tmp_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
+        //     //addr = iter->first->getOperand();//new Operand(addr_se);
+        //     heads.push_back(new Operand(tmp_se));
+        // }
     };
-    ExprNode* get_offset(){return offset;};
-    Operand* gethead(){return head;};
+    // ExprNode* get_offset(){return offset;};
+    // Operand* gethead(){return heads[0];};
     bool getf(){return f;};
+    bool setf(bool flag){f=flag;};
     void output(int level);
     void typeCheck();
     void genCode();
+    vector<ExprNode*> get_offsets(){return offsets;};
 };
 
 class StmtNode : public Node
@@ -168,10 +183,14 @@ class DeclStmt : public StmtNode
 private:
     //Id *id;
     std::map<Id*, ExprNode*> idlist;
+    std::map<Id*, vector<ExprNode*>> arraylist;
 public:
     DeclStmt(){};
     void insert(Id* id, ExprNode* init=nullptr){
         this->idlist[id]=init;
+    }
+    void insert_array(Id* id, vector<ExprNode*> initlist){
+        this->arraylist[id]=initlist;
     }
     void output(int level);
     void typeCheck();

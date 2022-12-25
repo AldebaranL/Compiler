@@ -18,6 +18,9 @@ public:
 
     std::vector<SymbolEntry*> global_dst;
     std::vector<SymbolEntry*> global_src;
+
+    std::vector<SymbolEntry*> arr_global_dst;
+    std::vector<vector<SymbolEntry*>> arr_global_src;
 public:
     Unit() = default;
     ~Unit() ;

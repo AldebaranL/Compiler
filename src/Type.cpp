@@ -1,5 +1,8 @@
 #include "Type.h"
 #include <sstream>
+#include <iostream>
+using namespace std;
+
 
 IntType TypeSystem::commonInt = IntType(32);
 IntType TypeSystem::commonBool = IntType(1);
@@ -49,13 +52,45 @@ std::string FunctionType::toStr()
 
 std::string ArrayType::toStr()
 {
+    //cout<<"arrayType tostr"<<endl;
     std::ostringstream buffer;
-    if(size!=-1){
-        buffer << "[" << size <<" x " << type->toStr() <<"]";
+    // cout<<dims.empty()<<endl;
+    if(dims.empty()){
+        //buffer << type->toStr() <<"*";
+        cout<<"----------error------------"<<endl;
+        buffer<<"----------error------------"<<endl;
+        return buffer.str();
+    }
+    if(dims[0]!=0){
+        //buffer << "[" << dims[1] <<" x " << type->toStr() <<"]";
+        for(auto & dim:dims){
+            buffer << "[" << dim <<" x " ;
+        }
+        buffer<<type->toStr();
+        for(auto & dim:dims){
+            buffer << "]" ;
+        }
     }
     else{
-        buffer << type->toStr() <<"*";
+        if(dims.size()>1){
+            int i=1;
+            while(i<dims.size()){
+                buffer << "[" << dims[i] <<" x " ;
+                i++;
+            }
+            buffer<<type->toStr();
+            i=1;
+            while(i<dims.size()){
+                buffer << "]" ;
+                i++;
+            }
+            buffer<<"*";
+        }
+        else{
+            buffer << type->toStr() <<"*";
+        }
     }
+    //cout<<"arrayType tostr end----"<<endl;
     return buffer.str();
 }
 
