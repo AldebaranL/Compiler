@@ -786,7 +786,6 @@ void DeclStmt::genCode()
     map<Id*, vector<ExprNode*>>::iterator array_iter;
     cout<<"arraylist.size():"<<arraylist.size()<<endl;
     for(array_iter = arraylist.begin();array_iter!=arraylist.end();array_iter++){
-        cout<<"嘎"<<endl;
         IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>((array_iter->first)->getSymPtr());
         if(se->isGlobal()){
             cout<<"----Global!!"<<endl;
@@ -980,11 +979,13 @@ void DeclStmt::genCode()
             }
             if(!f){
                 //全为空，直接bl memset
-                //改了以后中间代码可能不对，
+                //改了以后生成中间代码可能不对，
                 //还是在ArrayItemFetchInstruction里做，比较方便
                 new ArrayItemFetchInstruction(se->getType(),addr,true,builder->getInsertBB());
                 continue;
             }
+
+            new MemsetInstruction(se->getType(),addr,builder->getInsertBB());
             
             //如果声明的同时赋值，需要跟Store指令
             vector<int> dc;//计数
@@ -1008,6 +1009,8 @@ void DeclStmt::genCode()
                     vector<int> dims_copy=dims;
                     Type* itype=((ArrayType*)(se->getType()))->gettype();
                     Operand* addr_copy=addr;
+                    Operand* tag=new Operand(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
+
                     //int i=0;
                     if(exp){
                         //不为空
@@ -1020,9 +1023,11 @@ void DeclStmt::genCode()
                         //为空，赋初值0
                         cout<<"nullptr"<<endl;
                         src=const_0;
+                        //生成中间代码就不对了。。先这样
+                        // continue;
+                        goto jump_to;
                     }
 
-                    Operand* tag=new Operand(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
 
                     for(auto &off:dc){
                         Operand *offset_addr = new Operand(new ConstantSymbolEntry(TypeSystem::intType, off));
@@ -1049,7 +1054,7 @@ void DeclStmt::genCode()
                         //i++;
                     }
 
-                    
+jump_to:                    
                     bb=builder->getInsertBB();
                     new StoreInstruction(addr_copy, src, bb);
 

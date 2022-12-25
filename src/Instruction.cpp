@@ -519,6 +519,21 @@ void ArrayItemFetchInstruction::output() const
     }
 }
 
+MemsetInstruction::MemsetInstruction(Type* array_type, Operand* addr, BasicBlock* insert_bb):Instruction(MEMSET, insert_bb)
+{
+    this->type=array_type;
+    operands.push_back(addr);
+}
+MemsetInstruction::~MemsetInstruction()
+{
+    operands[0]->removeUse(this);
+}
+
+void MemsetInstruction::output() const
+{
+    cout<<"------------------MemsetInstruction output-----------------------"<<endl;
+}
+
 MachineOperand* Instruction::genMachineOperand(Operand* ope)
 {
     auto se = ope->getEntry();
@@ -627,8 +642,18 @@ void LoadInstruction::genMachineCode(AsmBuilder* builder)
         auto dst = genMachineOperand(operands[0]);
         auto src1 = genMachineReg(11);
         auto src2 = genMachineImm(dynamic_cast<TemporarySymbolEntry*>(operands[1]->getEntry())->getOffset());
-        cur_inst = new LoadMInstruction(cur_block, dst, src1, src2);
-        cur_block->InsertInst(cur_inst);
+        if(src2->getVal()>500||src2->getVal()<-500){
+            auto temp1=genMachineVReg();
+            auto temp2=genMachineVReg();
+            auto fp=genMachineReg(11);
+            cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, src2));
+            cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, temp2, fp, temp1));
+            cur_block->InsertInst(new LoadMInstruction(cur_block, dst, temp2));
+        }
+        else{
+            cur_inst = new LoadMInstruction(cur_block, dst, src1, src2);
+            cur_block->InsertInst(cur_inst);
+        }
     }
     // Load operand from temporary variable
     else
@@ -717,8 +742,18 @@ void StoreInstruction::genMachineCode(AsmBuilder* builder)
         // cout<<"operands[1]?"<<((TemporarySymbolEntry*)(operands[1]->getEntry())==nullptr)<<endl;
         // cout<<"offset?"<<(dynamic_cast<TemporarySymbolEntry*>(operands[1]->getEntry())==nullptr)<<endl;
         auto src2 = genMachineImm(((TemporarySymbolEntry*)(operands[0]->getEntry()))->getOffset());
-        cur_inst = new StoreMInstruction(cur_block, src, src1, src2);
-        cur_block->InsertInst(cur_inst);
+        if(src2->getVal()>500||src2->getVal()<-500){
+            auto temp1=genMachineVReg();
+            auto temp2=genMachineVReg();
+            auto fp=genMachineReg(11);
+            cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, src2));
+            cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, temp2, fp, temp1));
+            cur_block->InsertInst(new StoreMInstruction(cur_block, src, temp2));
+        }
+        else{       
+            cur_inst = new StoreMInstruction(cur_block, src, src1, src2);
+            cur_block->InsertInst(cur_inst);
+        }
     }
     // Load operand from temporary variable
     else
@@ -1166,8 +1201,17 @@ void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)
         int o=curr_func->AllocSpace(4);
         tmp_space[curr_func]=genMachineImm(-1*o);
     }
-    cur_block->InsertInst(new StoreMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
-    
+    if(tmp_space[curr_func]->getVal()>1000||tmp_space[curr_func]->getVal()<-1000){
+        auto t1=genMachineReg(1);
+        auto t2=genMachineReg(2);//如果用vreg还是会冲突，直接用reg吧，反正参数都是在后面设的
+        auto fp=genMachineReg(11);
+        cur_block->InsertInst(new LoadMInstruction(cur_block, t1, tmp_space[curr_func]));
+        cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, t2, fp, t1));
+        cur_block->InsertInst(new StoreMInstruction(cur_block, temp2, t2));
+    }
+    else{
+        cur_block->InsertInst(new StoreMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
+    }
     //下面计算元素的具体地址
     //一定是从大开始调到小
     vector<int>dims;
@@ -1206,7 +1250,17 @@ void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)
     // }
 
     //从内存中加载temp2
-    cur_block->InsertInst(new LoadMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
+    if(tmp_space[curr_func]->getVal()>1000||tmp_space[curr_func]->getVal()<-1000){
+        auto t1=genMachineReg(1);
+        auto t2=genMachineReg(2);
+        auto fp=genMachineReg(11);
+        cur_block->InsertInst(new LoadMInstruction(cur_block, t1, tmp_space[curr_func]));
+        cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, t2, fp, t1));
+        cur_block->InsertInst(new LoadMInstruction(cur_block, temp2, t2));
+    }
+    else{
+        cur_block->InsertInst(new LoadMInstruction(cur_block, temp2, fp, tmp_space[curr_func]));
+    }
     cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, temp2, temp3));
     
     last_hit=tag;
@@ -1240,5 +1294,40 @@ void ArrayItemFetchInstruction::genMachineCode(AsmBuilder* builder)
     //     head = genMachineOperand(operands[1]);
     // }
     // cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, dst, head, item_off));
+
+}
+
+void MemsetInstruction::genMachineCode(AsmBuilder* builder){
+    cout<<"MemsetInstruction~!"<<endl;
+    auto cur_block=builder->getBlock();
+    auto temp1=genMachineVReg();
+    auto fp=new MachineOperand(MachineOperand::REG, 11);
+    auto sp=new MachineOperand(MachineOperand::REG, 13);
+
+    cout<<"memsetflag tested***************"<<endl;
+    vector<int>dims;
+    int total=1;
+    if(type->isArray()){
+        dims=((ArrayType*)type)->get_dims();
+        while(!dims.empty()){
+            total*=dims.front();
+            dims.erase(dims.begin());
+        }
+    }
+    cout<<"total:"<<total<<endl;
+    total*=4;
+    cout<<operands.size()<<endl;
+    auto loc=genMachineImm(((TemporarySymbolEntry*)(operands[0]->getEntry()))->getOffset());
+    cur_block->InsertInst(new LoadMInstruction(cur_block, temp1, loc));
+    auto r0=genMachineReg(0);
+    auto r1=genMachineReg(1);
+    auto r2=genMachineReg(2);
+    auto init_val=genMachineImm(0);
+    auto range=genMachineImm(total);
+    cur_block->InsertInst(new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, r0, fp, temp1));
+    cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, r1, init_val));
+    cur_block->InsertInst(new LoadMInstruction(cur_block, r2, range));
+    auto memset_dst=new MachineOperand("memset", true);
+    cur_block->InsertInst(new BranchMInstruction(cur_block, BranchMInstruction::BL, memset_dst));
 
 }

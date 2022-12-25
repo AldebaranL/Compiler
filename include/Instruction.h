@@ -39,7 +39,7 @@ protected:
     Instruction *next;
     BasicBlock *parent;
     std::vector<Operand*> operands;
-    enum {BINARY, COND, UNCOND, RET, LOAD, STORE, CMP, ALLOCA, CALL, GLOBAL, TYPEFIX, ARRAYITEMFETCH};
+    enum {BINARY, COND, UNCOND, RET, LOAD, STORE, CMP, ALLOCA, CALL, GLOBAL, TYPEFIX, ARRAYITEMFETCH, MEMSET};
 };
 
 // meaningless instruction, used as the head node of the instruction list.
@@ -202,6 +202,17 @@ public:
     Operand* get_paramAddr(){return param_addr;};
     void set_memsetFlag(bool f){this->memset_flag=f;};
     bool get_memsetFlag(){return memset_flag;};
+};
+
+//取数组元素指令
+class MemsetInstruction : public Instruction
+{
+    Type* type;
+public:
+    MemsetInstruction(Type* array_type, Operand* addr, BasicBlock* insert_bb=nullptr);    
+    ~MemsetInstruction();
+    void output() const;
+    void genMachineCode(AsmBuilder*);
 };
 
 
