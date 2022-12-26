@@ -608,12 +608,16 @@ void MachineUnit::PrintGlobalDecl()
     // You need to print global variable/const declarition code;
     if (!global_dst.empty()||!arr_global_dst.empty())
         fprintf(yyout, "\t.data\n");
-    
-    for(int i=global_dst.size()-1;i>=0;i--){
+    vector<SymbolEntry*> const_dst;
+    vector<SymbolEntry*> const_src;
+    for(int i=0;i<global_dst.size();i++){
         string name=(const char*)(((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str())+1;
         int size=((IntType*)(global_dst[i]->getType()))->getSize()/8;
         
         if(global_dst[i]->getType()->isConst()){
+            const_dst.push_back(global_dst[i]);
+            const_src.push_back(global_src[i]);
+            continue;
             fprintf(yyout, "\t.section .rodata\n");
         }
         //cout<<"name????????"<<name<<endl;???为什么??????????
@@ -625,6 +629,29 @@ void MachineUnit::PrintGlobalDecl()
         string val;
         if(global_src[i]&&global_src[i]->isConstant()){
             val=global_src[i]->toStr();
+        }
+        else{
+            val="0";
+        }
+
+        fprintf(yyout, "\t.word %s\n", val.c_str());
+    }
+    for(int i=0;i<const_dst.size();i++){
+        string name=(const char*)(((IdentifierSymbolEntry*)(const_dst[i]))->toStr().c_str())+1;
+        int size=((IntType*)(const_dst[i]->getType()))->getSize()/8;
+        
+        if(const_dst[i]->getType()->isConst()){
+            fprintf(yyout, "\t.section .rodata\n");
+        }
+        //cout<<"name????????"<<name<<endl;???为什么??????????
+        fprintf(yyout, "\t.global %s\n", name.c_str());
+        fprintf(yyout, "\t.align 4\n");
+        fprintf(yyout, "\t.size %s, %d\n", name.c_str(), size);
+        fprintf(yyout, "%s:\n", name.c_str());
+        
+        string val;
+        if(const_src[i]&&const_src[i]->isConstant()){
+            val=const_src[i]->toStr();
         }
         else{
             val="0";
