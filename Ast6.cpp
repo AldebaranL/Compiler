@@ -122,7 +122,6 @@ void FunctionDef::genCode()
             BasicBlock* bb = builder->getInsertBB();
             new StoreInstruction( addr,ope, bb);//存储形参
             se->setAddr(addr);
-            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             //cout<<se<<endl;
             //cout<<"addr:"<<se->getAddr()->toStr()<<endl;
        }
@@ -140,10 +139,7 @@ void FunctionDef::genCode()
     //cout<<"-----------------------size="<<func->begin()-func->end()<<endl;
     int no;
     bool f=false;
-    BasicBlock* bf1=nullptr;
-    BasicBlock* bf2=nullptr;
-    // BasicBlock* bf=nullptr;
-
+    BasicBlock* bf=nullptr;
     for(std::vector<BasicBlock*>::iterator block=func->begin();block!=func->end();block++)
     {
         //cout<<"block"<<(*block)->getNo()<<endl;
@@ -167,8 +163,8 @@ void FunctionDef::genCode()
                 trueBB->addPred(*block);
             }
             if(!falseBB->empty()){
-                (*block)->addSucc(falseBB);
-                falseBB->addPred(*block);
+            (*block)->addSucc(falseBB);
+            falseBB->addPred(*block);
             }
         }
         else if(inst->isUncond()){
@@ -194,12 +190,10 @@ void FunctionDef::genCode()
             if((*block)->empty()){//为空 ret_bb的no设为此
                 f=true;
                 no=(*block)->getNo();
-                bf2=(*block);
             }
             else{
                 f=false;
-                bf1=(*block);
-                // bf=(*block);
+                bf=(*block);
             }
             // cout<<"neither!"<<endl;
 
@@ -222,12 +216,9 @@ void FunctionDef::genCode()
         if(f){
             //cout<<"ld_dst:"<<ld_dst->toStr()<<endl;
             // func->ret_bb=new BasicBlock(func);
-            //func->ret_bb->setNo(no);//必须要setNo，因为这条指令是和ReturnStmt里的UncondBr耦合的
-            //new UncondBrInstruction(func->ret_bb,bf2);
-            if(bf2!=func->getRet()){
-                new UncondBrInstruction(func->ret_bb,bf2);
-            }
-            //func->ret_bb->setNo(no);//必须要setNo，因为这条指令是和ReturnStmt里的UncondBr耦合的
+            // cout<<"**********ret_bb:"<<func->getRet()->getNo()<<endl;
+            // cout<<"**********no:"<<no<<endl;
+            func->ret_bb->setNo(no);//必须要setNo，因为这条指令是和ReturnStmt里的UncondBr耦合的
             LoadInstruction* loca=new LoadInstruction(ld_dst, ret_dst, func->getRet());
             RetInstruction* ret=new RetInstruction(dst,func->getRet());  
         }
@@ -235,9 +226,8 @@ void FunctionDef::genCode()
             //cout<<"ld_dst:"<<ld_dst->toStr()<<endl;
             //end_bb不为空
             //直接把两条instruction（load&ret）加在end_bb块后面
-            //UncondBrInstruction* toret = new UncondBrInstruction(func->ret_bb,bf1);
-            new UncondBrInstruction(func->ret_bb,bf1);
-            // new UncondBrInstruction(func->ret_bb,bf);
+            //UncondBrInstruction* toret = new UncondBrInstruction(func->ret_bb,bf);
+            new UncondBrInstruction(func->ret_bb,bf);
             new LoadInstruction(ld_dst, ret_dst, func->getRet());
             new RetInstruction(dst,func->getRet());  
         }
@@ -249,14 +239,11 @@ void FunctionDef::genCode()
         }
         //else{
             if(f){
-                //func->ret_bb->setNo(no);
-                if(bf2!=func->getRet()){
-                    new UncondBrInstruction(func->ret_bb,bf2);
-                }
+                func->ret_bb->setNo(no);
                 RetInstruction* ret=new RetInstruction(nullptr,func->getRet());  
             }
             else{
-                new UncondBrInstruction(func->ret_bb,bf1);
+                new UncondBrInstruction(func->ret_bb,bf);
                 new RetInstruction(nullptr,func->getRet());  
             }
         //}
@@ -278,7 +265,7 @@ void BinaryExpr::genCode()
         //cout<<"AND~!"<<endl;
         BasicBlock *trueBB = new BasicBlock(func);  // if the result of lhs is true, jump to the trueBB.
         expr1->genCode();//expr1的代码在bb中
-        
+
         //一定要重新getinsetbb!!因为expr1很可能调用了其他东西改了bb
         BasicBlock *now_bb = builder->getInsertBB();
         
@@ -459,7 +446,7 @@ void ArrayItem::genCode()
     if(!offsets.empty()){
         for(auto & offset : offsets){
             // cout<<offset->getOperand()->toStr()<<endl;
-            //offset->genCode();
+            offset->genCode();
         }
     }
     Operand *addr = (dynamic_cast<IdentifierSymbolEntry*>(symbolEntry))->getAddr();
@@ -495,16 +482,11 @@ void ArrayItem::genCode()
             new LoadInstruction(temp_addr, addr, bb);
             dims.erase(dims.begin());
             Type* itype=((ArrayType*)array_type)->gettype();
-            //here
-            offsets[0]->genCode();
             offset_addr=offsets[0]->getOperand();
-
-            ArrayItemFetchInstruction* special=nullptr;
             
             if(dims.empty()){
                 heads.push_back(new Operand(new TemporarySymbolEntry(new PointerType(itype), SymbolTable::getLabel())));
-                special=new ArrayItemFetchInstruction(dst, itype, heads[0], temp_addr, offset_addr, bb, true);
-                special->set_paramFlag(true);
+                new ArrayItemFetchInstruction(itype, heads[0], temp_addr, offset_addr, bb, true);
                 new LoadInstruction(dst, heads.back(), bb);
                 return;
             }
@@ -513,15 +495,13 @@ void ArrayItem::genCode()
             
             heads.push_back(new Operand(new TemporarySymbolEntry(new PointerType(array_type), SymbolTable::getLabel())));
             cout<<array_type->toStr()<<endl;
-            special=new ArrayItemFetchInstruction(dst, array_type, heads[0], temp_addr, offset_addr, bb, true);
-            special->set_paramFlag(true);
+            new ArrayItemFetchInstruction(array_type, heads[0], temp_addr, offset_addr, bb, true);
+            
             int i=1;
             vector<ExprNode*> offsets_copy=offsets;
             offsets_copy.erase(offsets_copy.begin());
             if(!offsets_copy.empty()){
                 for(auto& offset:offsets_copy){
-                    //here
-                    offset->genCode();
                     offset_addr=offset->getOperand();  
                     Type* type;
                     dims.erase(dims.begin()); 
@@ -532,14 +512,13 @@ void ArrayItem::genCode()
                         type=itype;
                     }
                     heads.push_back(new Operand(new TemporarySymbolEntry(new PointerType(type), SymbolTable::getLabel())));
-                    special=new ArrayItemFetchInstruction(dst, array_type, heads[i], heads[i-1], offset_addr, bb);
+                    new ArrayItemFetchInstruction(array_type, heads[i], heads[i-1], offset_addr, bb);
                     i++;
                     if(dims.empty()){
                         break;
                     }
                 }
             }
-            special->set_paramFlag(true);
             new LoadInstruction(dst, heads.back(), bb);
         }
     }
@@ -550,9 +529,6 @@ void ArrayItem::genCode()
         // new LoadInstruction(temp1, addr, bb);
         int i=0;
         heads.clear();
-        cout<<"....."<<endl;
-        cout<<"addr:"<<(((IdentifierSymbolEntry*)symbolEntry)->getAddr()==nullptr)<<endl;
-        cout<<symbolEntry->toStr()<<endl;
         if(offsets.empty()){
             
             Type *array_type=new ArrayType(itype, dims);
@@ -575,16 +551,14 @@ void ArrayItem::genCode()
             SymbolEntry *tmp_se = new TemporarySymbolEntry(ptype, SymbolTable::getLabel());
             Operand* temp_addr=new Operand(tmp_se);
             heads.push_back(temp_addr);
-            cout<<"addr==nullptr??"<<(addr==nullptr)<<endl;
-            new ArrayItemFetchInstruction(dst, array_type, temp_addr, addr, const_0, bb);
+
+            new ArrayItemFetchInstruction(array_type, temp_addr, addr, const_0, bb);
             //new LoadInstruction(dst, heads[0], bb);
             return;
         }
         cout<<"offsets size:"<<offsets.size()<<endl;
         for(auto & offset : offsets){
             cout<<"???"<<endl;
-            //here
-            offset->genCode();
             Operand *offset_addr = offset->getOperand();
             // Type *array_type = ((ArrayType*)(symbolEntry->getType()))->gettype();
             Type *array_type=new ArrayType(itype, dims);
@@ -602,9 +576,8 @@ void ArrayItem::genCode()
             Operand* temp_addr=new Operand(tmp_se);
 
             if(f)offset_addr=const_0;
-        
-            new ArrayItemFetchInstruction(dst, array_type, temp_addr, addr, offset_addr, bb);
-            cout<<"??"<<endl;
+
+            new ArrayItemFetchInstruction(array_type, temp_addr, addr, offset_addr, bb);
             addr=temp_addr;
             heads.push_back(temp_addr);
             
@@ -612,7 +585,7 @@ void ArrayItem::genCode()
                 break;
             i++;
         }
-        
+        cout<<"??"<<endl;
         new LoadInstruction(dst, heads.back(), bb);
     }
 }
@@ -714,22 +687,19 @@ void SeqNode::genCode()
 
 void DeclStmt::genCode()
 {
-    cout<<"DeclStmt~!"<<endl;
+    // cout<<"DeclStmt~!"<<endl;
     //TODO ok
     map<Id*, ExprNode*>::iterator iter;
     for(iter = idlist.begin();iter!=idlist.end();iter++){
         IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>((iter->first)->getSymPtr());
         if(se->isGlobal())//scope==GLOBAL（就是0）
         {
-            cout<<"Global~!"<<endl;
-            builder->getUnit()->global_dst.push_back(se);
             Operand *addr;
             SymbolEntry *addr_se;
             addr_se = new IdentifierSymbolEntry(*se);
             addr_se->setType(new PointerType(se->getType()));
             addr = new Operand(addr_se);
             se->setAddr(addr);
-            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
 
             std::string dst, type;
             dst = addr->toStr();
@@ -739,8 +709,6 @@ void DeclStmt::genCode()
             
             //new GlobalInstruction(addr, se, bb); 
             if(iter->second){
-                //cout<<"constant?"<<iter->second->getSymPtr()->toStr()<<endl;
-                builder->getUnit()->global_src.push_back(iter->second->getSymPtr());
                 BasicBlock *bb = builder->getInsertBB();
                 iter->second->genCode();
                 Operand *src = iter->second->getOperand();
@@ -750,14 +718,13 @@ void DeclStmt::genCode()
                 string dst_type1 = addr->getType()->toStr();
                 string src_type1 = src->getType()->toStr();
                 //printf("%s = global %s %s, align 4\n", dst.c_str(), type.c_str(),src1.c_str());
-                builder->getUnit()->global_defs.push_back(new GlobalInstruction(addr, src, bb));
-                // fprintf(yyout, "%s = global %s %s, align 4\n", dst.c_str(), type.c_str(),src1.c_str());
+                //new GlobalInstruction(addr,se);
+                fprintf(yyout, "%s = global %s %s, align 4\n", dst.c_str(), type.c_str(),src1.c_str());
             }
             else{
-                builder->getUnit()->global_src.push_back(nullptr);
-                builder->getUnit()->global_defs.push_back(new GlobalInstruction(addr, const_0, bb));
-                // fprintf(yyout, "%s = global %s 0, align 4\n", dst.c_str(), type.c_str());
+                fprintf(yyout, "%s = global %s 0, align 4\n", dst.c_str(), type.c_str());
             }
+
         }
         else if(se->isLocal())
         {
@@ -773,8 +740,7 @@ void DeclStmt::genCode()
             //addr = iter->first->getOperand();//new Operand(addr_se);
             addr = new Operand(addr_se);
             // cout<<"addr:"<<addr->getType()->toStr()<<endl;
-            // cout<<"se:"<<se->getType()->toStr()<<endl;
-                                                    // set the addr operand in symbol entry so that we can use it in subsequent code generation.
+            // set the addr operand in symbol entry so that we can use it in subsequent code generation.
             alloca = new AllocaInstruction(addr, se);                   // allocate space for local id in function stack.
             //如果声明的同时赋值，需要跟Store指令
             if(iter->second){
@@ -784,26 +750,24 @@ void DeclStmt::genCode()
                 new StoreInstruction(addr, src, bb);
                 //printf("19 ");
             }
-            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            cout<<"setAddr~~ "<<se->toStr()<<endl;
             se->setAddr(addr);  
             entry->insertFront(alloca);                                 // allocate instructions should be inserted into the begin of the entry block.
         }
     }
     map<Id*, vector<ExprNode*>>::iterator array_iter;
-    cout<<"arraylist.size():"<<arraylist.size()<<endl;
     for(array_iter = arraylist.begin();array_iter!=arraylist.end();array_iter++){
         IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>((array_iter->first)->getSymPtr());
         if(se->isGlobal()){
             cout<<"----Global!!"<<endl;
             cout<<se->toStr()<<endl;
-            builder->getUnit()->arr_global_dst.push_back(se);
             Operand *addr;
             SymbolEntry *addr_se;
             addr_se = new IdentifierSymbolEntry(*se);
             addr_se->setType(new PointerType(se->getType()));
             addr = new Operand(addr_se);
             se->setAddr(addr);
-            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+
             std::string dst, type;
             dst = addr->toStr();
             type = se->getType()->toStr();
@@ -821,14 +785,6 @@ void DeclStmt::genCode()
             }
 
             if(f&&!array_iter->second.empty()){
-                vector<SymbolEntry*> g_s;
-                for(auto & exp:array_iter->second){
-                    SymbolEntry* item=nullptr;
-                    if(exp)
-                        item=exp->getSymPtr();    
-                    g_s.push_back(item);
-                }
-                builder->getUnit()->arr_global_src.push_back(g_s);
                 vector<ExprNode*> explist=array_iter->second;
                 
                 BasicBlock *bb = builder->getInsertBB();
@@ -941,16 +897,12 @@ void DeclStmt::genCode()
                     if(str!=q.back())buffer<<", ";
                 }
                 //cout<<endl;
-                builder->getUnit()->global_defs.push_back(new GlobalInstruction(addr, const_0, bb, buffer.str()));
-                //fprintf(yyout, "%s = global %s, align 4\n", dst.c_str(), buffer.str().c_str());
+                fprintf(yyout, "%s = global %s, align 4\n", dst.c_str(), buffer.str().c_str());
                 //new GlobalInstruction(addr,se);
                 //fprintf(yyout, "%s", buffer.str().c_str());
             }
             else{
-                vector<SymbolEntry*> g_s;//是空的
-                builder->getUnit()->arr_global_src.push_back(g_s);
-                builder->getUnit()->global_defs.push_back(new GlobalInstruction(addr, const_0, bb, "zero"));
-                // fprintf(yyout, "%s = global %s zeroinitializer, align 4\n", dst.c_str(), type.c_str());
+                fprintf(yyout, "%s = global %s zeroinitializer, align 4\n", dst.c_str(), type.c_str());
             }
         }
         else{
@@ -969,30 +921,7 @@ void DeclStmt::genCode()
             // cout<<"addr:"<<addr->getType()->toStr()<<endl;
             cout<<"se:"<<se->getType()->toStr()<<endl;
                                                     // set the addr operand in symbol entry so that we can use it in subsequent code generation.
-            se->setAddr(addr);  
-            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             alloca = new AllocaInstruction(addr, se);                   // allocate space for local id in function stack.
-            entry->insertFront(alloca);  
-
-            bool f=false;
-            if(!array_iter->second.empty()){
-                for(auto& sc:array_iter->second){
-                    if(sc){
-                        f=true;//不全为空
-                        break;
-                    }
-                }
-            }
-            if(!f){
-                //全为空，直接bl memset
-                //改了以后生成中间代码可能不对，
-                //还是在ArrayItemFetchInstruction里做，比较方便
-                new ArrayItemFetchInstruction(se->getType(),addr,true,builder->getInsertBB());
-                continue;
-            }
-
-            new MemsetInstruction(se->getType(),addr,builder->getInsertBB());
-            
             //如果声明的同时赋值，需要跟Store指令
             vector<int> dc;//计数
             vector<int> dims=((ArrayType*)(se->getType()))->get_dims();
@@ -1015,26 +944,7 @@ void DeclStmt::genCode()
                     vector<int> dims_copy=dims;
                     Type* itype=((ArrayType*)(se->getType()))->gettype();
                     Operand* addr_copy=addr;
-                    Operand* tag=new Operand(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
-
                     //int i=0;
-                    if(exp){
-                        //不为空
-                        cout<<"! nullptr"<<endl;
-                        exp->genCode();
-                        bb=builder->getInsertBB();
-                        src=exp->getOperand();//!!tag不能用这个
-                    }
-                    else{
-                        //为空，赋初值0
-                        cout<<"nullptr"<<endl;
-                        src=const_0;
-                        //生成中间代码就不对了。。先这样
-                        // continue;
-                        goto jump_to;
-                    }
-
-
                     for(auto &off:dc){
                         Operand *offset_addr = new Operand(new ConstantSymbolEntry(TypeSystem::intType, off));
                         // Type *array_type = ((ArrayType*)(symbolEntry->getType()))->gettype();
@@ -1053,17 +963,28 @@ void DeclStmt::genCode()
                         SymbolEntry *tmp_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
                         Operand* temp_addr=new Operand(tmp_se);
                         
-                        new ArrayItemFetchInstruction(tag, array_type, temp_addr, addr_copy, offset_addr, bb);
+                        new ArrayItemFetchInstruction(array_type, temp_addr, addr_copy, offset_addr, bb);
                         addr_copy=temp_addr;
                         if(dims_copy.empty())
                             break;
                         //i++;
                     }
 
-                    
+                    if(exp){
+                        //不为空
+                        cout<<"! nullptr"<<endl;
+                        exp->genCode();
+                        bb=builder->getInsertBB();
+                        src=exp->getOperand();
+                    }
+                    else{
+                        //为空，赋初值0
+                        cout<<"nullptr"<<endl;
+                        src=const_0;
+                    }
                     bb=builder->getInsertBB();
                     new StoreInstruction(addr_copy, src, bb);
-jump_to:
+
                     //dc.back()++;
                     if(dc.back()+1==dims.back()){
                         int i=dc.size()-1;
@@ -1100,9 +1021,9 @@ jump_to:
                 
                 //printf("19 ");
             }
-            
-            
-            
+            cout<<"setAddr~~ "<<se->toStr()<<endl;
+            se->setAddr(addr);  
+            entry->insertFront(alloca);  
         }  
     }
 }
@@ -1229,26 +1150,20 @@ void FunctionCall::genCode()
 {
     // Todo ok
     cout<<"FunctionCall~!"<<endl;
-    cout<<se->toStr()<<params.size()<<endl;
     Function *func= builder->getInsertBB()->getParent();
     BasicBlock *nowb = builder->getInsertBB();
     vector<Operand*> vo;
     std::string name;
 
     std::vector<Type*> types = ((FunctionType*)(se->getType()))->paramsType;
-    
-    vector<Type*> paramtypes=((FunctionType*)(((IdentifierSymbolEntry*)se)->getType()))->paramsType;
+
     if(!params.empty()){
         for(unsigned int i = 0;i < params.size(); i++)
         {
             cout<<"hi1"<<endl;
-                        
             params[i]->genCode();
-            Operand *src=params[i]->getOperand();
-            if(params[i]->isArray()&&paramtypes[i]->isArray()){
-                src=((ArrayItem*)(params[i]))->heads.back();
-            }
             cout<<"hi2"<<endl;
+            Operand *src=params[i]->getOperand();
             if(params[i]->isArray()){
                 cout<<"haha------"<<endl;
                 if(((ArrayItem*)(params[i]))->getf())
@@ -1257,6 +1172,7 @@ void FunctionCall::genCode()
             vo.push_back(src);
         }
     }
+
     new CallInstruction(symbolEntry,dst,vo,nowb);
     Operand *dsts=dst;
 
@@ -1273,14 +1189,10 @@ void EmptyStmt::genCode()
 }
 void BreakStmt::genCode()
 {
-    cout<<"BreakStmt~!"<<endl;
-    cout<<parent<<endl;
+    //cout<<"BreakStmt~!"<<endl;
     BasicBlock* bb=builder->getInsertBB();
     BasicBlock* end_bb=((WhileStmt*)parent)->get_end_bb();
-    cout<<(end_bb==nullptr)<<endl;
-    cout<<end_bb->getNo()<<endl;
     new UncondBrInstruction(end_bb, bb);
-    cout<<"end BreakStmt??"<<endl;
 }
 void ContinueStmt::genCode()
 {
@@ -1296,8 +1208,7 @@ void ExprStmt::genCode()
 }
 void WhileStmt::genCode()
 {
-    cout<<"**************************WhileStmt~!"<<endl;
-    cout<<this<<endl;
+    // cout<<"WhileStmt~!"<<endl;
     // Todo ok
     // 和ifstmt有区别：cond必须为一个独立的basicblock（cond实际上无条件接在end_bb后面）
     Function *func;
@@ -1326,6 +1237,7 @@ void WhileStmt::genCode()
     backPatch(cond->falseList(), end_bb, false);
     cond_bb=builder->getInsertBB();
     //cout<<"cond_bb:"<<cond_bb->getNo()<<endl;
+    cout<<cond->getOperand()->toStr();
     if(cond->getOperand()->getType()->toStr()=="i32"||cond->getOperand()->getType()->toStr()=="i32()"){
         Operand *temp = new Operand(new TemporarySymbolEntry(TypeSystem::boolType, SymbolTable::getLabel()));
         new CmpInstruction(CmpInstruction::NE,temp,cond->getOperand(),const_0,cond_bb);//int转bool
@@ -1341,7 +1253,6 @@ void WhileStmt::genCode()
     new UncondBrInstruction(this->cond_bb, then_bb);
 
     builder->setInsertBB(end_bb);
-    cout<<"WhileStmt end"<<endl;
 }
 void AssignStmt::genCode()
 {
@@ -1351,7 +1262,7 @@ void AssignStmt::genCode()
     expr->genCode();
 
     if(lval->isId()){
-        BasicBlock *bb = builder->getInsertBB();
+        BasicBlock *bb = builder->getInsertBB();        
         IdentifierSymbolEntry* se = dynamic_cast<IdentifierSymbolEntry*>(lval->getSymPtr());
         //cout<<"se:"<<se<<endl;
         Operand *addr = dynamic_cast<IdentifierSymbolEntry*>(lval->getSymPtr())->getAddr();
@@ -1368,7 +1279,121 @@ void AssignStmt::genCode()
     }
     else if(lval->isArray()){
         BasicBlock* bb=builder->getInsertBB();
-       
+        // cout<<lval->getSymPtr()->toStr()<<endl;
+        // cout<<(((ArrayType*)(lval->getSymPtr()->getType()))->dims.empty())<<endl;
+        // vector<int> dims=((ArrayType*)(lval->getSymPtr()->getType()))->get_dims();
+        // SymbolEntry* se=lval->getSymPtr();
+        // Operand *src;
+        // Operand* addr=((IdentifierSymbolEntry*)se)->getAddr();
+        // //vector<int> dc;//计数
+        // if(dims.empty()){
+        //     bb = builder->getInsertBB();
+
+        //     Type* array_type = (dynamic_cast<IdentifierSymbolEntry*>(se))->getType();
+
+        //     SymbolEntry *tmp_se = new TemporarySymbolEntry(array_type, SymbolTable::getLabel());
+        //     Operand* temp_addr=new Operand(tmp_se);
+
+        //     vector<ExprNode*> offsets=((ArrayItem*)(lval))->get_offsets();
+        //     Operand* offset_addr=offsets[0]->getOperand();
+        //     offsets[0]->genCode();
+        //     bb=builder->getInsertBB();
+
+        //     Operand* expr_addr=expr->getOperand();
+
+        //     new LoadInstruction(temp_addr, addr, bb);
+        //     Operand* newhead=new Operand(new TemporarySymbolEntry(new PointerType(((ArrayType*)(array_type))->gettype()), SymbolTable::getLabel()));
+        //     ((ArrayItem*)(lval))->heads.push_back(newhead);
+        //     new ArrayItemFetchInstruction(array_type, newhead, temp_addr, offset_addr, bb, true);
+        //     new StoreInstruction(newhead, expr_addr, bb);
+        // }
+        // else{
+        //     // for(auto & dim : dims){
+        //     //     dc.push_back(0);
+        //     // }
+        //     vector<ExprNode*> offsets=((ArrayItem*)(lval))->get_offsets();
+        //     Operand* temp_addr;
+        //     for(auto & exp : offsets){
+        //         //cout<<"-------dc:"<<dc.back()<<endl;
+        //         vector<int> dims_copy=dims;
+        //         Type* itype=((ArrayType*)(se->getType()))->gettype();
+        //         Operand* addr_copy=addr;
+        //         //int i=0;
+        //         exp->genCode();
+        //         bb=builder->getInsertBB();
+        //         //for(auto &off:dc){
+        //         //Operand *offset_addr = new Operand(new ConstantSymbolEntry(TypeSystem::intType, off));
+        //         Operand *offset_addr=exp->getOperand();
+        //         // Type *array_type = ((ArrayType*)(symbolEntry->getType()))->gettype();
+        //         Type *array_type=new ArrayType(itype, dims_copy);
+        //         cout<<array_type->toStr()<<endl;
+
+        //         dims_copy.erase(dims_copy.begin());
+        //         Type *sub_type;
+        //         if(dims_copy.empty()){
+        //             sub_type=((ArrayType*)(se->getType()))->gettype();
+        //         }
+        //         else{
+        //             sub_type=new ArrayType(itype, dims_copy);
+        //         }
+        //         Type* type = new PointerType(sub_type);//数组元素的类型
+        //         SymbolEntry *tmp_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
+        //         temp_addr=new Operand(tmp_se);
+
+        //         // if(exp==offsets.back()){
+        //         //     temp_addr=lval->getOperand();
+        //         // }
+                
+        //         new ArrayItemFetchInstruction(array_type, temp_addr, addr_copy, offset_addr, bb);
+        //         addr_copy=temp_addr;
+        //         if(dims_copy.empty())
+        //             break;
+        //             //i++;
+        //         //}
+
+        //         // if(exp){
+        //         //     //不为空
+        //         //     cout<<"! nullptr"<<endl;
+        //         //     exp->genCode();
+        //         //     bb=builder->getInsertBB();
+        //         //     src=exp->getOperand();
+        //         // }
+        //         // else{
+        //         //     //为空，赋初值0
+        //         //     cout<<"nullptr"<<endl;
+        //         //     src=const_0;
+        //         // }
+                
+        //         // //dc.back()++;                
+        //         // if(dc.back()+1==dims.back()){
+        //         //     int i=dc.size()-1;
+        //         //     //进位
+        //         //     while(i>=0){
+        //         //         dc[i]=0;
+        //         //         if(i>0){
+        //         //             if(dc[i-1]+1==dims[i-1]){
+        //         //                 i--;
+        //         //                 continue;
+        //         //             }
+        //         //             else{
+        //         //                 dc[i-1]++;
+        //         //                 break;
+        //         //             }
+        //         //         }
+        //         //         i--;
+        //         //     }
+        //         // }
+        //         // else{
+        //         //     cout<<"++??"<<endl;
+        //         //     dc.back()++; 
+        //         // }
+        //     }
+        //     bb=builder->getInsertBB();
+        //     src=expr->getOperand();
+            
+            //new StoreInstruction(temp_addr, src, bb);
+
+        //}
         lval->genCode();
         bb=builder->getInsertBB();
         Operand* dst=((ArrayItem*)lval)->heads.back();

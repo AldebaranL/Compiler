@@ -15,7 +15,8 @@
     std::vector<Type*> paramtypes;
     vector<SymbolEntry*> sesymlist;
     std::vector<std::string> paramsymbols;
-    std::vector<ExprNode*> globle_tmp_paramcalls;
+    map<int, vector<ExprNode*>> globle_tmp_paramcalls;
+    int call_level=0;
     bool isret=false;
     
     bool alarm=false;
@@ -1540,22 +1541,26 @@ Params:
     Exp{
         //全部变成ID了。。。
         //globle_tmp_paramcalls.clear();
-        globle_tmp_paramcalls.push_back($1);
+        globle_tmp_paramcalls[call_level].push_back($1);
+
+        // if($1->getSymPtr()->getType()->isFunc()) call_level++;
     }
     |
     Params COMMA Exp{
         //SymbolEntry *se;
         //se = identifiers->lookup($3);
         //assert(se != nullptr);
-        globle_tmp_paramcalls.push_back($3);
+        globle_tmp_paramcalls[call_level].push_back($3);
+
+        // if($3->getSymPtr()->getType()->isFunc()) call_level++;
     }
     ;
 FuncCall
     :
-    ID LPAREN Params RPAREN
+    ID LPAREN{call_level++;} Params RPAREN
     {
         std::vector<ExprNode*> params;
-        params.swap(globle_tmp_paramcalls);
+        params.swap(globle_tmp_paramcalls[call_level]);
         
         SymbolEntry *se;
         se = identifiers->lookup($1);
@@ -1574,12 +1579,14 @@ FuncCall
             //assert();
         }
         $$ = new FunctionCall(se, params);
+
+        call_level--;
     }
     |
-    ID LPAREN RPAREN
+    ID LPAREN{call_level++;} RPAREN
     {
         std::vector<ExprNode*> params;
-        params.swap(globle_tmp_paramcalls);
+        params.swap(globle_tmp_paramcalls[call_level]);
         SymbolEntry *se;
         se = identifiers->lookup($1);
         //assert(se != nullptr);

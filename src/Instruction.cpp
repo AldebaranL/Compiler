@@ -1034,6 +1034,11 @@ void CallInstruction::genMachineCode(AsmBuilder* builder)
         c=vo.size()-1;
         while(c>3){
             auto param=genMachineOperand(vo[c]);
+            if(param->isImm()){
+                auto temp=genMachineVReg();
+                cur_block->InsertInst(new MovMInstruction(cur_block, MovMInstruction::MOV, temp, param));
+                param=temp;
+            }
             cout<<vo[c]->getEntry()->toStr()<<endl;
             vector<MachineOperand*> push_list;
             push_list.push_back(param);
