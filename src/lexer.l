@@ -307,6 +307,48 @@ commentend "*/"
     return ID;
 }
 
+"putarray" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    paramTypes.push_back(TypeSystem::intType);
+    vector<int> dims;
+    dims.push_back(0);
+    ArrayType* arr = new ArrayType(TypeSystem::intType, dims);
+    paramTypes.push_back(arr);
+    Type* funcType = new FunctionType(TypeSystem::voidType, paramTypes);
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+    st->install(yytext, se);
+    return ID;
+}
+
+"getarray" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    vector<int> dims;
+    dims.push_back(0);
+    ArrayType* arr = new ArrayType(TypeSystem::intType, dims);
+    paramTypes.push_back(arr);
+    Type* funcType = new FunctionType(TypeSystem::intType, paramTypes);
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+    st->install(yytext, se);
+    return ID;
+}
 
 {DECIMIAL}  {
     if(dump_tokens)

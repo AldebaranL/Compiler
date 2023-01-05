@@ -167,8 +167,8 @@ void FunctionDef::genCode()
                 trueBB->addPred(*block);
             }
             if(!falseBB->empty()){
-            (*block)->addSucc(falseBB);
-            falseBB->addPred(*block);
+                (*block)->addSucc(falseBB);
+                falseBB->addPred(*block);
             }
         }
         else if(inst->isUncond()){
@@ -459,7 +459,7 @@ void ArrayItem::genCode()
     if(!offsets.empty()){
         for(auto & offset : offsets){
             // cout<<offset->getOperand()->toStr()<<endl;
-            offset->genCode();
+            //offset->genCode();
         }
     }
     Operand *addr = (dynamic_cast<IdentifierSymbolEntry*>(symbolEntry))->getAddr();
@@ -495,6 +495,8 @@ void ArrayItem::genCode()
             new LoadInstruction(temp_addr, addr, bb);
             dims.erase(dims.begin());
             Type* itype=((ArrayType*)array_type)->gettype();
+            //here
+            offsets[0]->genCode();
             offset_addr=offsets[0]->getOperand();
 
             ArrayItemFetchInstruction* special=nullptr;
@@ -518,6 +520,8 @@ void ArrayItem::genCode()
             offsets_copy.erase(offsets_copy.begin());
             if(!offsets_copy.empty()){
                 for(auto& offset:offsets_copy){
+                    //here
+                    offset->genCode();
                     offset_addr=offset->getOperand();  
                     Type* type;
                     dims.erase(dims.begin()); 
@@ -579,6 +583,8 @@ void ArrayItem::genCode()
         cout<<"offsets size:"<<offsets.size()<<endl;
         for(auto & offset : offsets){
             cout<<"???"<<endl;
+            //here
+            offset->genCode();
             Operand *offset_addr = offset->getOperand();
             // Type *array_type = ((ArrayType*)(symbolEntry->getType()))->gettype();
             Type *array_type=new ArrayType(itype, dims);
@@ -1054,10 +1060,10 @@ void DeclStmt::genCode()
                         //i++;
                     }
 
-jump_to:                    
+                    
                     bb=builder->getInsertBB();
                     new StoreInstruction(addr_copy, src, bb);
-
+jump_to:
                     //dc.back()++;
                     if(dc.back()+1==dims.back()){
                         int i=dc.size()-1;
@@ -1229,14 +1235,19 @@ void FunctionCall::genCode()
     std::string name;
 
     std::vector<Type*> types = ((FunctionType*)(se->getType()))->paramsType;
-
+    
+    vector<Type*> paramtypes=((FunctionType*)(((IdentifierSymbolEntry*)se)->getType()))->paramsType;
     if(!params.empty()){
         for(unsigned int i = 0;i < params.size(); i++)
         {
             cout<<"hi1"<<endl;
+                        
             params[i]->genCode();
-            cout<<"hi2"<<endl;
             Operand *src=params[i]->getOperand();
+            if(params[i]->isArray()&&paramtypes[i]->isArray()){
+                src=((ArrayItem*)(params[i]))->heads.back();
+            }
+            cout<<"hi2"<<endl;
             if(params[i]->isArray()){
                 cout<<"haha------"<<endl;
                 if(((ArrayItem*)(params[i]))->getf())
@@ -1245,7 +1256,6 @@ void FunctionCall::genCode()
             vo.push_back(src);
         }
     }
-
     new CallInstruction(symbolEntry,dst,vo,nowb);
     Operand *dsts=dst;
 
@@ -1262,10 +1272,14 @@ void EmptyStmt::genCode()
 }
 void BreakStmt::genCode()
 {
-    //cout<<"BreakStmt~!"<<endl;
+    cout<<"BreakStmt~!"<<endl;
+    cout<<parent<<endl;
     BasicBlock* bb=builder->getInsertBB();
     BasicBlock* end_bb=((WhileStmt*)parent)->get_end_bb();
+    cout<<(end_bb==nullptr)<<endl;
+    cout<<end_bb->getNo()<<endl;
     new UncondBrInstruction(end_bb, bb);
+    cout<<"end BreakStmt??"<<endl;
 }
 void ContinueStmt::genCode()
 {
@@ -1281,7 +1295,8 @@ void ExprStmt::genCode()
 }
 void WhileStmt::genCode()
 {
-    // cout<<"WhileStmt~!"<<endl;
+    cout<<"**************************WhileStmt~!"<<endl;
+    cout<<this<<endl;
     // Todo ok
     // 和ifstmt有区别：cond必须为一个独立的basicblock（cond实际上无条件接在end_bb后面）
     Function *func;
@@ -1325,6 +1340,7 @@ void WhileStmt::genCode()
     new UncondBrInstruction(this->cond_bb, then_bb);
 
     builder->setInsertBB(end_bb);
+    cout<<"WhileStmt end"<<endl;
 }
 void AssignStmt::genCode()
 {
