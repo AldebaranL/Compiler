@@ -129,6 +129,7 @@ class ArrayItem : public ExprNode
 {
    vector<ExprNode*> offsets;//有可能是INTEGER，有可能是ID
     bool f;
+    bool isparam;
 public:
     vector<Operand*> heads;
 public:
@@ -146,7 +147,9 @@ public:
     // ExprNode* get_offset(){return offset;};
     // Operand* gethead(){return heads[0];};
     bool getf(){return f;};
-    bool setf(bool flag){f=flag;};
+    void setf(bool flag){f=flag;};
+    void setParam(bool flag){isparam=flag;};
+    bool getParam(){return isparam;}
     void output(int level);
     void typeCheck();
     void genCode();

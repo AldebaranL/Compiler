@@ -22,8 +22,9 @@
     extern int yylineno;
     string curr_func="";
 
-    vector<BreakStmt*> breakList;
-    vector<ContinueStmt*> continueList;
+    map<int,vector<BreakStmt*>> breakList;
+    map<int,vector<ContinueStmt*>> continueList;
+    int while_level=0;
 
     int l_br=-1;
     vector<int>dims;
@@ -99,7 +100,7 @@ BreakStmt
     :
     BREAK SEMICOLON{
         BreakStmt* bs = new BreakStmt();
-        breakList.push_back(bs);
+        breakList[while_level].push_back(bs);
         $$ = bs;
     }
     ;
@@ -108,7 +109,7 @@ ContinueStmt
     :
     CONTINUE SEMICOLON{
         ContinueStmt* cs = new ContinueStmt();
-        continueList.push_back(cs);
+        continueList[while_level].push_back(cs);
         $$ = cs;
     }
     ;
@@ -251,17 +252,27 @@ IfStmt
 WhileStmt
     : 
     WHILE {
-        breakList.clear();
-        continueList.clear();
+
+        while_level++;
+        breakList[while_level].clear();
+        continueList[while_level].clear();
+        
     }
     LPAREN Cond RPAREN Stmt{
         $$ = new WhileStmt($4, $6);
-        for(int i=0;i<(int)(breakList.size());i++){
-            breakList[i]->setParent($$);
+        cout<<"^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"<<$$<<endl;
+        for(int i=0;i<(int)(breakList[while_level].size());i++){
+            cout<<"break??"<<endl;
+            breakList[while_level][i]->setParent($$);
         }
-        for(int i=0;i<(int)(continueList.size());i++){
-            continueList[i]->setParent($$);
+        for(int i=0;i<(int)(continueList[while_level].size());i++){
+            continueList[while_level][i]->setParent($$);
         }
+
+        // breakList.clear();
+        // continueList.clear();
+
+        while_level--;
     }   
     ;
 
@@ -1208,6 +1219,7 @@ DeclStmt
         se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
         //if($1->isConst()){
         se->set_value($4->getSymPtr()->get_value());
+        cout<<"******************"<<se->get_value()<<endl;
         //}
 
         identifiers->install($2, se);

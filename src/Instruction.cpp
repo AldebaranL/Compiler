@@ -658,7 +658,7 @@ void LoadInstruction::genMachineCode(AsmBuilder* builder)
     // Load operand from temporary variable
     else
     {
-        //cout<<3<<endl;
+        // cout<<3<<endl;
         // example: load r1, [r0]
         auto dst = genMachineOperand(operands[0]);
         auto src = genMachineOperand(operands[1]);
@@ -927,6 +927,7 @@ void UncondBrInstruction::genMachineCode(AsmBuilder* builder)
     MachineOperand* dst = new MachineOperand(ss.str());
     MachineInstruction* cur_inst = new BranchMInstruction(cur_block, BranchMInstruction::B, dst);
     cur_block->InsertInst(cur_inst);
+    cout<<"end??"<<endl;
 }
 
 void CondBrInstruction::genMachineCode(AsmBuilder* builder)
