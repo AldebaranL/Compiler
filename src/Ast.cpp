@@ -122,7 +122,7 @@ void FunctionDef::genCode()
             BasicBlock* bb = builder->getInsertBB();
             new StoreInstruction( addr,ope, bb);//存储形参
             se->setAddr(addr);
-            cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             //cout<<se<<endl;
             //cout<<"addr:"<<se->getAddr()->toStr()<<endl;
        }
@@ -261,7 +261,7 @@ void FunctionDef::genCode()
             }
         //}
     }
-    //cout<<"defEnd~!"<<endl;
+    cout<<"defEnd~!"<<endl;
     // loca->output();
     // ret->output();
     // ret_bb->output();   
@@ -729,7 +729,7 @@ void DeclStmt::genCode()
             addr_se->setType(new PointerType(se->getType()));
             addr = new Operand(addr_se);
             se->setAddr(addr);
-            cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
 
             std::string dst, type;
             dst = addr->toStr();
@@ -784,7 +784,7 @@ void DeclStmt::genCode()
                 new StoreInstruction(addr, src, bb);
                 //printf("19 ");
             }
-            cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             se->setAddr(addr);  
             entry->insertFront(alloca);                                 // allocate instructions should be inserted into the begin of the entry block.
         }
@@ -803,7 +803,7 @@ void DeclStmt::genCode()
             addr_se->setType(new PointerType(se->getType()));
             addr = new Operand(addr_se);
             se->setAddr(addr);
-            cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             std::string dst, type;
             dst = addr->toStr();
             type = se->getType()->toStr();
@@ -970,7 +970,7 @@ void DeclStmt::genCode()
             cout<<"se:"<<se->getType()->toStr()<<endl;
                                                     // set the addr operand in symbol entry so that we can use it in subsequent code generation.
             se->setAddr(addr);  
-            cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
+            //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
             alloca = new AllocaInstruction(addr, se);                   // allocate space for local id in function stack.
             entry->insertFront(alloca);  
 
@@ -1229,6 +1229,7 @@ void FunctionCall::genCode()
 {
     // Todo ok
     cout<<"FunctionCall~!"<<endl;
+    cout<<se->toStr()<<params.size()<<endl;
     Function *func= builder->getInsertBB()->getParent();
     BasicBlock *nowb = builder->getInsertBB();
     vector<Operand*> vo;

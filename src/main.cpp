@@ -80,7 +80,9 @@ int main(int argc, char *argv[])
 
     unit.genMachineCode(&mUnit);
     LinearScan linearScan(&mUnit);
+    cout<<"hi"<<endl;
     linearScan.allocateRegisters();
+    cout<<"hi"<<endl;
     cout<<"output stage----"<<endl;
     if(dump_asm)
         mUnit.output();
