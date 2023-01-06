@@ -189,6 +189,7 @@ private:
     std::set<MachineOperand*> live_in;
     std::set<MachineOperand*> live_out;
     int opcode;//记录cmp的opcode
+    static int label;
 public:
     std::vector<MachineInstruction*>& getInsts() {return inst_list;};
     std::vector<MachineInstruction*>::iterator begin() { return inst_list.begin(); };
@@ -206,6 +207,8 @@ public:
     void output();
     void set_op(int op){this->opcode = op;};
     int get_op(){return this->opcode;};
+
+    int getCount(){return inst_list.size();};
 };
 
 class MachineFunction
@@ -236,15 +239,27 @@ public:
     void addSavedRegs(int regno) {saved_regs.insert(regno);};
     int num_SavedRegs(){return saved_regs.size();};
     void output();
+    MachineUnit* getParent(){return parent;};
+
+    int getCount(){
+        int count=0;
+        for(auto& block:block_list){
+            count+=block->getCount();
+        }
+        return count;
+    }
 };
 
 class MachineUnit
 {
+public:
+    int n;
 private:
     std::vector<MachineFunction*> func_list;
     void PrintGlobalDecl();
-    void PrintGlobalEnd();
+    
 public:
+    void PrintGlobalEnd();
     std::vector<SymbolEntry*> global_dst;
     std::vector<SymbolEntry*> global_src;
 

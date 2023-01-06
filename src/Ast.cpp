@@ -261,7 +261,7 @@ void FunctionDef::genCode()
             }
         //}
     }
-    //cout<<"defEnd~!"<<endl;
+    cout<<"defEnd~!"<<endl;
     // loca->output();
     // ret->output();
     // ret_bb->output();   

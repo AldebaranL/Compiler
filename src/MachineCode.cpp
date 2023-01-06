@@ -6,6 +6,8 @@ using namespace std;
 
 extern FILE* yyout;
 
+int MachineBlock::label = 0;
+
 void MachineInstruction::insertBefore(MachineInstruction* inst) {
     auto& instructions = parent->getInsts();
     auto it = std::find(instructions.begin(), instructions.end(), this);
@@ -106,7 +108,7 @@ void MachineOperand::output()
         else if (this->label.substr(0, 2) == ".L")
             fprintf(yyout, "%s", this->label.c_str());
         else
-            fprintf(yyout, "addr_%s", (char*)(this->label.c_str())+1);
+            fprintf(yyout, "addr_%s%d", (char*)(this->label.c_str())+1, parent->getParent()->getParent()->getParent()->n);
     default:
         break;
     }
@@ -552,6 +554,13 @@ void MachineBlock::output()
         // cout<<"count: "<<count<<endl;
         inst->output();
         // cout<<"count: "<<count++<<endl;
+        count++;
+        if (count % 500 == 0) {
+            fprintf(yyout, "\tb .B%d\n", label);
+            fprintf(yyout, ".LTORG\n");
+            parent->getParent()->PrintGlobalEnd();
+            fprintf(yyout, ".B%d:\n", label++);
+        }
     }
     if(inst_list.empty()){
         
@@ -598,8 +607,18 @@ void MachineFunction::output()
         (new BinaryMInstruction(nullptr, BinaryMInstruction::SUB, sp, sp, temp))->output();
     }
 
-    for(auto iter : block_list)
+    int count = 0;
+    for(auto iter : block_list){
         iter->output();
+        count += iter->getCount();
+        if (count > 160) {
+            fprintf(yyout, "\tb .F%d\n", parent->n);
+            fprintf(yyout, ".LTORG\n");
+            parent->PrintGlobalEnd();
+            fprintf(yyout, ".F%d:\n", parent->n - 1);
+            count = 0;
+        }
+    }
 }
 
 void MachineUnit::PrintGlobalDecl()
@@ -701,19 +720,21 @@ void MachineUnit::PrintGlobalEnd()
     for(int i=0;i<(int)(global_dst.size());i++){
         const char * name=((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str()+1;
         
-        fprintf(yyout, "addr_%s:\n", name);
+        fprintf(yyout, "addr_%s%d:\n", name, n);
         fprintf(yyout, "\t.word %s\n", name);
     }
     for(int i=0;i<(int)(arr_global_dst.size());i++){
         const char * name=((IdentifierSymbolEntry*)(arr_global_dst[i]))->toStr().c_str()+1;
         
-        fprintf(yyout, "addr_%s:\n", name);
+        fprintf(yyout, "addr_%s%d:\n", name, n);
         fprintf(yyout, "\t.word %s\n", name);
     }
+    n++;
 }
 
 void MachineUnit::output()
 {
+    n=0;
     // TODO
     /* Hint:
     * 1. You need to print global variable/const declarition code;
@@ -724,8 +745,19 @@ void MachineUnit::output()
     fprintf(yyout, "\t.arm\n");
     PrintGlobalDecl();
     fprintf(yyout, "\t.text\n");
-    for(auto iter : func_list)
+
+    int count=0;
+    for(auto iter : func_list){
         iter->output();
+        count += iter->getCount();
+        if (count > 600) {
+            fprintf(yyout, "\tb .F%d\n", n);
+            fprintf(yyout, ".LTORG\n");
+            PrintGlobalEnd();
+            fprintf(yyout, ".F%d:\n", n - 1);
+            count = 0;
+        }
+    }
     fprintf(yyout, "\n");
     PrintGlobalEnd();
 }

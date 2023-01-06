@@ -988,6 +988,7 @@ void RetInstruction::genMachineCode(AsmBuilder* builder)
     //bx lr
     MachineInstruction* bx_lr = new BranchMInstruction(cur_block, BranchMInstruction::BX, lr);
     cur_block->InsertInst(bx_lr);
+    cout<<"Ret end??"<<endl;
 }
 
 void CallInstruction::genMachineCode(AsmBuilder* builder)
