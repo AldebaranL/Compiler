@@ -23,7 +23,10 @@ SUB "-"
 DECIMIAL ([1-9][0-9]*|0)
 OCTAL 0([1-7][0-7]*|0)
 HEX (0x|0X)([1-9a-fA-F][0-9a-fA-F]*|0)
-FLOAT {DECIMIAL}+(.{DECIMIAL}+)?((e|E)(\+|-)?{DECIMIAL}+)?
+
+FLOAT_DECIMAL ((([0-9]*[.][0-9]*([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+))[fLlL]?)
+FLOAT_HEXADECIMAL (0[xX](([0-9A-Fa-f]*[.][0-9A-Fa-f]*([pP][+-]?[0-9]+)?)|([0-9A-Fa-f]+[pP][+-]?[0-9]+))[fLlL]?)
+
 ID [[:alpha:]_][[:alpha:][:digit:]_]*
 EOL (\r\n|\n|\r)
 WHITE [\t ]
@@ -45,6 +48,11 @@ commentend "*/"
     if(dump_tokens)
         DEBUG_FOR_LAB4("INT\tint");
     return INT;
+}
+"float" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4("FLOAT\tfloat");
+    return FLOAT;
 }
 "bool" {
     if(dump_tokens)
@@ -269,6 +277,47 @@ commentend "*/"
     }
     return ID;
 }
+
+"putfloat" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    paramTypes.push_back(TypeSystem::floatType);
+    Type* funcType = new FunctionType(TypeSystem::voidType, paramTypes);
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
+    return ID;
+}
+
+"getfloat" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    Type* funcType = new FunctionType(TypeSystem::floatType, paramTypes);
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
+    return ID;
+}
+
+
 "putch" {
     if(dump_tokens)
         DEBUG_FOR_LAB4(yytext);
@@ -324,8 +373,10 @@ commentend "*/"
     SymbolTable* st = identifiers;
     while(st->getPrev())
         st = st->getPrev();
-    SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
-    st->install(yytext, se);
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
     return ID;
 }
 
@@ -345,10 +396,60 @@ commentend "*/"
     SymbolTable* st = identifiers;
     while(st->getPrev())
         st = st->getPrev();
-    SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
-    st->install(yytext, se);
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
     return ID;
 }
+"putfarray" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    paramTypes.push_back(TypeSystem::intType);
+    vector<int> dims;
+    dims.push_back(0);
+    ArrayType* arr = new ArrayType(TypeSystem::floatType, dims);
+    paramTypes.push_back(arr);
+    Type* funcType = new FunctionType(TypeSystem::voidType, paramTypes);
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
+    return ID;
+}
+
+"getfarray" {
+    if(dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    char *lexeme;
+    lexeme = new char[strlen(yytext) + 1];
+    strcpy(lexeme, yytext);
+    yylval.strtype = lexeme;
+    std::vector<Type*> paramTypes;
+    vector<int> dims;
+    dims.push_back(0);
+    ArrayType* arr = new ArrayType(TypeSystem::intType, dims);
+    paramTypes.push_back(arr);
+    Type* funcType = new FunctionType(TypeSystem::intType, paramTypes); 
+    SymbolTable* st = identifiers;
+    while(st->getPrev())
+        st = st->getPrev();
+    if(!st->lookup(yytext)){
+        SymbolEntry* se = new IdentifierSymbolEntry(funcType, yytext, st->getLevel(), true);
+        st->install(yytext, se);
+    }
+    return ID;
+}
+
+
 
 {DECIMIAL}  {
     if(dump_tokens)
@@ -375,6 +476,25 @@ commentend "*/"
     //std::cout<<yytext<<endl;
     return INTEGER;
 }
+
+{FLOAT_DECIMAL} {
+    float temp;
+    sscanf(yytext, "%f", &temp);
+    if (dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    yylval.itype = (double)temp;
+    return FLOATING_POINT;
+}
+
+{FLOAT_HEXADECIMAL} {
+    float temp;
+    sscanf(yytext, "%f", &temp);
+    if (dump_tokens)
+        DEBUG_FOR_LAB4(yytext);
+    yylval.itype = (double)temp;
+    return FLOATING_POINT;
+}
+
 
 {ID} {
     if(dump_tokens)

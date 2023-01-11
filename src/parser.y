@@ -41,7 +41,7 @@
 }
 
 %union {
-    int itype;
+    double itype;
     char* strtype;
     StmtNode* stmttype;
     ExprNode* exprtype;
@@ -50,9 +50,9 @@
 
 %start Program
 %token <strtype> ID 
-%token <itype> INTEGER
+%token <itype> INTEGER FLOATING_POINT
 %token IF ELSE WHILE
-%token INT BOOL VOID
+%token INT FLOAT BOOL VOID
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE SEMICOLON COMMA
 %token NOT AADD SSUB
 %token MUL DIV MOD ADD SUB OR AND LESS MORE EQUAL MORE_E LESS_E NOT_EQUAL ASSIGN
@@ -158,9 +158,13 @@ LVal
         {
             cout<<"line: "<<yylineno<<endl;
             fprintf(stderr, "identifier \"%s\" is undefined\n", (char*)$1);
-            delete [](char*)$1;
-            cout<<se->toStr()<<endl;
-            assert(se != nullptr);
+            // delete [](char*)$1;
+            // cout<<se->toStr()<<endl;
+            // assert(se != nullptr);
+                        
+            se = new IdentifierSymbolEntry(TypeSystem::intType, $1, identifiers->getLevel());
+            se->set_value(idlist[$1]->getSymPtr()->get_value());        
+            identifiers->install($1, se);
         }
 
         if(se->getType()->isArray()){
@@ -168,10 +172,6 @@ LVal
             //$$ = (ExprNode*)(((IdentifierSymbolEntry*)se)->getParent());
             vector<ExprNode*> emp;
             $$=new ArrayItem(se, emp, true);
-            //((ArrayItem*)$$)->setf(true);
-            // SymbolEntry *offset_se = new ConstantSymbolEntry(TypeSystem::intType, 0);//offset为常数
-            // Constant *offset = new Constant(offset_se);
-            // $$ = new ArrayItem(se, offset, true);
        }
         else{
             $$ = new Id(se);
@@ -220,9 +220,11 @@ AssignExpr
             //assert(alarm);
         }
         SymbolEntry *se = $1->getSymPtr();
-        if($1->getSymPtr()->getType()->isConst()){
-            $1->getSymPtr()->set_value($4->getSymPtr()->get_value());
-        }
+        double val=$4->getSymPtr()->get_value();
+        if(se->getType()->isInt())
+            val=(int)val;
+        $1->getSymPtr()->set_value(val);
+        
         $$ = new AssignStmt($1, $4);
     }
     ;
@@ -324,6 +326,15 @@ PrimaryExp
        // std::cout<<"INTEGER"<<$1<<endl;
     }
     |
+    FLOATING_POINT  {
+        cout<<$1<<endl;
+        SymbolEntry *se = new ConstantSymbolEntry(TypeSystem::floatType, $1);
+        se->set_value($1);
+        cout<<se->get_value()<<endl;
+        $$ = new Constant(se);
+        cout<<"FLOATING_POINT"<<endl;
+    }
+    |
     LPAREN Exp RPAREN {
         $$ = $2;
     }
@@ -376,7 +387,12 @@ sufSinExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isInt())
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        else if($1->getSymPtr()->getType()->isFloat())
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        
         $$ = new sufSingleExpr(se, $1, sufSingleExpr::AADD);
         $$->set_arrflag($1->get_arrflag());
     }
@@ -396,8 +412,11 @@ sufSinExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
-        $$ = new sufSingleExpr(se, $1, sufSingleExpr::SSUB);
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isInt())
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        else if($1->getSymPtr()->getType()->isFloat())
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());     
         $$->set_arrflag($1->get_arrflag());
     }
     
@@ -424,7 +443,11 @@ preSinExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se;
+        if($2->getSymPtr()->getType()->isInt())
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        else if($2->getSymPtr()->getType()->isFloat())
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());       
         $$ = new preSingleExpr(se, preSingleExpr::AADD, $2);
         $$->set_arrflag($2->get_arrflag());
     }
@@ -444,7 +467,11 @@ preSinExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se;
+        if($2->getSymPtr()->getType()->isInt())
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        else if($2->getSymPtr()->getType()->isFloat())
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());      
         $$ = new preSingleExpr(se, preSingleExpr::SSUB, $2);
         $$->set_arrflag($2->get_arrflag());
     }
@@ -474,7 +501,11 @@ preSinExp
             $$ = new Constant(se);$$->set_arrflag($2->get_arrflag());
         }
         else{
-            SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+            SymbolEntry *se;
+            if($2->getSymPtr()->getType()->isInt())
+                se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+            else if($2->getSymPtr()->getType()->isFloat())
+                se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());       
             $$ = new preSingleExpr(se, preSingleExpr::SUB, $2);
             $$->set_arrflag($2->get_arrflag());
         }
@@ -516,9 +547,22 @@ MulExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
-        int res=($1->getSymPtr()->get_value())*($3->getSymPtr()->get_value());
-        se->set_value(res);
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isFloat()||$3->getSymPtr()->getType()->isFloat()
+            ||($1->getSymPtr()->getType()->isFunc()&&((FunctionType*)($1->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($3->getSymPtr()->getType()->isFunc()&&((FunctionType*)($3->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($1->getSymPtr()->getType()->isArray()&&((ArrayType*)($1->getSymPtr()->getType()))->gettype()->isFloat())
+            ||($3->getSymPtr()->getType()->isArray()&&((ArrayType*)($3->getSymPtr()->getType()))->gettype()->isFloat()))
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        else
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());       
+
+        double val1=$1->getSymPtr()->get_value(), val2=$3->getSymPtr()->get_value();
+        if($1->getSymPtr()->getType()->isInt()) val1=(int)val1;
+        if($3->getSymPtr()->getType()->isInt()) val2=(int)val2;
+
+        double res=(val1)*(val2);
+        se->set_value((float)res);
         
         $$ = new BinaryExpr(se, BinaryExpr::MUL, $1, $3);
         $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
@@ -540,10 +584,23 @@ MulExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isFloat()||$3->getSymPtr()->getType()->isFloat()
+            ||($1->getSymPtr()->getType()->isFunc()&&((FunctionType*)($1->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($3->getSymPtr()->getType()->isFunc()&&((FunctionType*)($3->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($1->getSymPtr()->getType()->isArray()&&((ArrayType*)($1->getSymPtr()->getType()))->gettype()->isFloat())
+            ||($3->getSymPtr()->getType()->isArray()&&((ArrayType*)($3->getSymPtr()->getType()))->gettype()->isFloat()))
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        else
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());       
+
         if($3->getSymPtr()->get_value()!=0){
-            int res=($1->getSymPtr()->get_value())/($3->getSymPtr()->get_value());
-            se->set_value(res);
+            double val1=$1->getSymPtr()->get_value(), val2=$3->getSymPtr()->get_value();
+            if($1->getSymPtr()->getType()->isInt()) val1=(int)val1;
+            if($3->getSymPtr()->getType()->isInt()) val2=(int)val2;
+
+            double res=(val1)/(val2);
+            se->set_value((float)res);
         }
         $$ = new BinaryExpr(se, BinaryExpr::DIV, $1, $3);
         $$->set_arrflag($1->get_arrflag()||$3->get_arrflag());
@@ -565,9 +622,20 @@ MulExp
             }
         }
 
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isFloat()||$3->getSymPtr()->getType()->isFloat()
+            ||($1->getSymPtr()->getType()->isFunc()&&((FunctionType*)($1->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($3->getSymPtr()->getType()->isFunc()&&((FunctionType*)($3->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($1->getSymPtr()->getType()->isArray()&&((ArrayType*)($1->getSymPtr()->getType()))->gettype()->isFloat())
+            ||($3->getSymPtr()->getType()->isArray()&&((ArrayType*)($3->getSymPtr()->getType()))->gettype()->isFloat()))
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        else
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());       
+
         if($3->getSymPtr()->get_value()!=0){
-            int res=($1->getSymPtr()->get_value())%($3->getSymPtr()->get_value());
+            int t1=($1->getSymPtr()->get_value());
+            int t2=($3->getSymPtr()->get_value());
+            int res=t1%t2;
             se->set_value(res);
         }
         $$ = new BinaryExpr(se, BinaryExpr::MOD, $1, $3);
@@ -610,8 +678,22 @@ AddExp
             }
         }
         
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
-        int res=($1->getSymPtr()->get_value())+($3->getSymPtr()->get_value());
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isFloat()||$3->getSymPtr()->getType()->isFloat()
+            ||($1->getSymPtr()->getType()->isFunc()&&((FunctionType*)($1->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($3->getSymPtr()->getType()->isFunc()&&((FunctionType*)($3->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($1->getSymPtr()->getType()->isArray()&&((ArrayType*)($1->getSymPtr()->getType()))->gettype()->isFloat())
+            ||($3->getSymPtr()->getType()->isArray()&&((ArrayType*)($3->getSymPtr()->getType()))->gettype()->isFloat()))
+            
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        else
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());       
+
+        double val1=$1->getSymPtr()->get_value(), val2=$3->getSymPtr()->get_value();
+        if($1->getSymPtr()->getType()->isInt()) val1=(int)val1;
+        if($3->getSymPtr()->getType()->isInt()) val2=(int)val2;
+
+        double res=(val1)+(val2);
         se->set_value(res);
 
         $$ = new BinaryExpr(se, BinaryExpr::ADD, $1, $3);
@@ -634,8 +716,21 @@ AddExp
             }
         }
         
-        SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
-        int res=($1->getSymPtr()->get_value())-($3->getSymPtr()->get_value());
+        SymbolEntry *se;
+        if($1->getSymPtr()->getType()->isFloat()||$3->getSymPtr()->getType()->isFloat()
+            ||($1->getSymPtr()->getType()->isFunc()&&((FunctionType*)($1->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($3->getSymPtr()->getType()->isFunc()&&((FunctionType*)($3->getSymPtr()->getType()))->getRetType()->isFloat())
+            ||($1->getSymPtr()->getType()->isArray()&&((ArrayType*)($1->getSymPtr()->getType()))->gettype()->isFloat())
+            ||($3->getSymPtr()->getType()->isArray()&&((ArrayType*)($3->getSymPtr()->getType()))->gettype()->isFloat()))
+            se = new TemporarySymbolEntry(TypeSystem::floatType, SymbolTable::getLabel());
+        else
+            se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());      
+
+        double val1=$1->getSymPtr()->get_value(), val2=$3->getSymPtr()->get_value();
+        if($1->getSymPtr()->getType()->isInt()) val1=(int)val1;
+        if($3->getSymPtr()->getType()->isInt()) val2=(int)val2;
+
+        double res=(val1)-(val2);
         se->set_value(res);
         
         $$ = new BinaryExpr(se, BinaryExpr::SUB, $1, $3);
@@ -894,6 +989,10 @@ Type
         $$ = TypeSystem::intType;
     }
     |
+    FLOAT {
+        $$ = TypeSystem::floatType;
+    }
+    |
     BOOL{
         $$ = TypeSystem::boolType;
     }
@@ -901,9 +1000,10 @@ Type
         $$ = TypeSystem::voidType;
     }
     | CONST Type {
-        // cout<<"ha"<<endl;
-        // $$ = new IntType(4, 1);
-        $$ = TypeSystem::constType;
+        if($2->isInt())
+            $$ = TypeSystem::intType_const;
+        else if($2->isFloat())
+            $$ = TypeSystem::floatType_const;
     }
     ;
 BRACEUnit
@@ -1219,13 +1319,22 @@ DeclStmt
 
         se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
         //if($1->isConst()){
-        se->set_value($4->getSymPtr()->get_value());
-        cout<<"******************"<<se->get_value()<<endl;
+        double val=$4->getSymPtr()->get_value();
+        if(se->getType()->isInt())
+            val=(int)val;
+        se->set_value(val);
         //}
 
         identifiers->install($2, se);
         DeclStmt* tmp = new DeclStmt();
-        tmp->insert(new Id(se),$4);
+
+        ExprNode* exp=$4;
+        if(identifiers->getLevel()==0){
+            SymbolEntry* const_se=new ConstantSymbolEntry($1, $4->getSymPtr()->get_value());
+            exp=new Constant(const_se);
+        }
+
+        tmp->insert(new Id(se),exp);
         $$ = tmp;       
         delete []$2;
     }
@@ -1305,12 +1414,29 @@ DeclStmt
         std::map <std::string, ExprNode*>::iterator it=idlist.begin();
         SymbolEntry *se;
         while(it!=idlist.end()){
+            
             // cout<<it->first<<endl;
-            se = new IdentifierSymbolEntry($1, it->first, identifiers->getLevel());
+            se=identifiers->lookup(it->first);
+            if(!se){
+                se = new IdentifierSymbolEntry($1, it->first, identifiers->getLevel());
+            }
+            else{ 
+                se->setType($1);
+            }
             if(it->second){
                 se->set_value(it->second->getSymPtr()->get_value());
+                cout<<"******************"<<it->second->getSymPtr()->get_value()<<endl;
+                //救命。。
+                if(identifiers->getLevel()==0){
+                    SymbolEntry* const_se=new ConstantSymbolEntry($1, it->second->getSymPtr()->get_value());
+                    it->second=new Constant(const_se);
+                }
             }
+            cout<<it->first<<endl;
             identifiers->install(it->first, se);
+            // SymbolEntry* const_se=new ConstantSymbolEntry(TypeSystem::floatType, it->second->getSymPtr()->get_value());
+            // ExprNode* c=new Constant(const_se);
+            
             tmp->insert(new Id(se), it->second);
             it++;
         }
@@ -1415,6 +1541,10 @@ FuncDef
         Type *funcType;
         //std::vector<Type*> params;
         //params.swap(paramtypes);
+        // for(auto& t:paramtypes){
+        //     cout<<t->toStr();
+        // }
+        // cout<<endl;
         funcType = new FunctionType($1,paramtypes);
         SymbolEntry *se = new IdentifierSymbolEntry(funcType, $2, identifiers->getLevel());
         identifiers->install($2, se);

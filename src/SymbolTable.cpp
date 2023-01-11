@@ -1,16 +1,19 @@
 #include "SymbolTable.h"
+#include <iomanip> 
 #include <iostream>
 #include <sstream>
 #include <map>
+#include "Type.h"
 using namespace std;
 
 SymbolEntry::SymbolEntry(Type *type, int kind) 
 {
     this->type = type;
     this->kind = kind;
+    this->const_value=0;
 }
 
-ConstantSymbolEntry::ConstantSymbolEntry(Type *type, int value) : SymbolEntry(type, SymbolEntry::CONSTANT)
+ConstantSymbolEntry::ConstantSymbolEntry(Type *type, double value) : SymbolEntry(type, SymbolEntry::CONSTANT)
 {
     this->value = value;
 }
@@ -18,7 +21,13 @@ ConstantSymbolEntry::ConstantSymbolEntry(Type *type, int value) : SymbolEntry(ty
 std::string ConstantSymbolEntry::toStr()
 {
     std::ostringstream buffer;
-    buffer << value;
+    if(type->isFloat()){
+        buffer << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16)<<*reinterpret_cast<uint64_t*>(&value);
+        //buffer <<fixed<< setprecision (6) << value;
+    }
+    else{
+        buffer << (int)value;
+    }
     return buffer.str();
 }
 
@@ -85,7 +94,6 @@ SymbolEntry* SymbolTable::lookup(std::string name)
     }
     return nullptr;
 }
-
 
 // install the entry into current symbol table.
 void SymbolTable::install(std::string name, SymbolEntry* entry)

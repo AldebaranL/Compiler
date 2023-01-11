@@ -10,7 +10,7 @@ class Type
 private:
     int kind;
 protected:
-    enum {INT, VOID, FUNC, ARRAY, PTR, CONST, BOOL};
+    enum {INT, FLOAT, VOID, FUNC, ARRAY, PTR, CONST, BOOL};
 public:
     Type(int kind) : kind(kind) {};
     virtual ~Type() {};
@@ -20,7 +20,7 @@ public:
     bool isFunc() const {return kind == FUNC;};
     bool isArray() const {return kind == ARRAY;};
     bool isBool() const{return kind == BOOL;};
-    bool isConst() const{return kind == CONST;};
+    bool isFloat() const{return kind==FLOAT;};
     //virtual bool is_const() = 0;
 };
 
@@ -35,7 +35,20 @@ public:
     };
     std::string toStr();
     int getSize(){return size;};
-    //bool is_const();
+    bool isConst(){return isconst;};
+};
+
+class FloatType : public Type
+{
+private:
+    int size;
+    bool isconst;
+public:
+       FloatType(int size, bool isconst=false) : Type(Type::FLOAT), size(size){
+        this->isconst=isconst;
+    };
+    std::string toStr();
+    bool isConst(){return isconst;};
 };
 
 class VoidType : public Type
@@ -47,14 +60,14 @@ public:
     //bool is_const();
 };
 
-class ConstType : public Type
-{
-private:
-    int size;
-public:
-    ConstType(int size) : Type(Type::CONST), size(size){};
-    std::string toStr();
-};
+// class ConstType : public Type
+// {
+// private:
+//     int size;
+// public:
+//     ConstType(int size) : Type(Type::CONST), size(size){};
+//     std::string toStr();
+// };
 
 class FunctionType : public Type
 {
@@ -108,14 +121,18 @@ class TypeSystem
 {
 private:
     static IntType commonInt;
+    static IntType commonConstInt;
     static IntType commonBool;
     static VoidType commonVoid;
-    static ConstType commonConst;
+    static FloatType commonFloat;
+    static FloatType commonConstFloat;
 public:
     static Type *intType;
+    static Type *intType_const;
     static Type *voidType;
     static Type *boolType;
-    static Type *constType;
+    static Type *floatType;
+    static Type *floatType_const;
 };
 
 #endif
