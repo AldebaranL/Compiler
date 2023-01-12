@@ -48,10 +48,10 @@ int rotate(int x, int y, float rad) {
   float sinma = my_sin(rad), cosma = my_cos(rad);
   int hwidth = width / 2, hheight = height / 2;
   int xt = x - hwidth, yt = y - hheight;
-  int src_x = xt * cosma - yt * sinma + hwidth;
-      //src_y = xt * sinma + yt * cosma + hheight;
-  //if (src_x < 0 || src_x >= width || src_y < 0 || src_y >= height) return 0;
-  return yt * sinma;
+  int src_x = xt * cosma - yt * sinma + hwidth,
+      src_y = xt * sinma + yt * cosma + hheight;
+  if (src_x < 0 || src_x >= width || src_y < 0 || src_y >= height) return 0;
+  return image[src_y * width + src_x];
 }
 
 void write_pgm(float rad) {

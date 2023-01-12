@@ -887,8 +887,10 @@ void DeclStmt::genCode()
         IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>((iter->first)->getSymPtr());
         if(se->isGlobal())//scope==GLOBAL（就是0）
         {
-            cout<<"Global~!"<<endl;
+            cout<<"**************************Global~!"<<endl;
+            
             builder->getUnit()->global_dst.push_back(se);
+            cout<<"##"<<se->toStr()<<endl;
             Operand *addr = se->getAddr();
             se->setAddr(addr);
             //cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~setAddr~~ "<<se->toStr()<<endl;
@@ -901,9 +903,12 @@ void DeclStmt::genCode()
             
             //new GlobalInstruction(addr, se, bb); 
             if(iter->second){
+                cout<<se->toStr()<<se->get_value()<<endl;
                 if(se->getType()->isInt()){
+                    cout<<"isInt"<<endl;
                     //cout<<"constant?"<<iter->second->getSymPtr()->toStr()<<endl;
                     builder->getUnit()->global_src.push_back(iter->second->getSymPtr());
+                    cout<<"##"<<iter->second->getSymPtr()->get_value()<<endl;
                     BasicBlock *bb = builder->getInsertBB();
                     iter->second->genCode();
                     Operand *src = iter->second->getOperand();
@@ -917,11 +922,11 @@ void DeclStmt::genCode()
                     // fprintf(yyout, "%s = global %s %s, align 4\n", dst.c_str(), type.c_str(),src1.c_str());
                 }
                 else{
-                    cout<<se->toStr()<<endl;
+                    cout<<"isFloat"<<endl;
                     builder->getUnit()->global_src.push_back(iter->second->getSymPtr());
+                    cout<<"##"<<iter->second->getSymPtr()->get_value()<<endl;
                     BasicBlock *bb = builder->getInsertBB();
                     iter->second->genCode();
-                    cout<<"hi"<<endl;
                     Operand *src = iter->second->getOperand();
                     new StoreInstruction(addr, src, bb);
                     string dst1 = addr->toStr();
@@ -945,6 +950,7 @@ void DeclStmt::genCode()
             }
             else{
                 builder->getUnit()->global_src.push_back(nullptr);
+                cout<<"##nothing!"<<endl;
                 builder->getUnit()->global_defs.push_back(new GlobalInstruction(addr, const_0, bb));
                 // fprintf(yyout, "%s = global %s 0, align 4\n", dst.c_str(), type.c_str());
             }

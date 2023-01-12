@@ -848,12 +848,16 @@ void MachineFunction::output()
 void MachineUnit::PrintGlobalDecl()
 {
     // TODO:
+    cout<<"-------------------PrintGlobalDecl"<<endl;
     // You need to print global variable/const declarition code;
     if (!global_dst.empty()||!arr_global_dst.empty())
         fprintf(yyout, "\t.data\n");
     vector<SymbolEntry*> const_dst;
     vector<SymbolEntry*> const_src;
     for(int i=0;i<global_dst.size();i++){
+        cout<<global_dst[i]->toStr()<<endl;
+        if(global_src[i])cout<<global_src[i]->get_value()<<endl;
+        else cout<<"nothing"<<endl;
         string name=(const char*)(((IdentifierSymbolEntry*)(global_dst[i]))->toStr().c_str())+1;
         int size=((IntType*)(global_dst[i]->getType()))->getSize()/8;
         
@@ -861,7 +865,7 @@ void MachineUnit::PrintGlobalDecl()
             const_dst.push_back(global_dst[i]);
             const_src.push_back(global_src[i]);
             continue;
-            fprintf(yyout, "\t.section .rodata\n");
+            //fprintf(yyout, "\t.section .rodata\n");
         }
         //cout<<"name????????"<<name<<endl;???为什么??????????
         fprintf(yyout, "\t.global %s\n", name.c_str());
@@ -893,24 +897,27 @@ void MachineUnit::PrintGlobalDecl()
             fprintf(yyout, "\t.word %s\n", val.c_str());
         }
     }
+
+    fprintf(yyout, "\t.section .rodata\n");
     
     for(int i=0;i<const_dst.size();i++){
         string name=(const char*)(((IdentifierSymbolEntry*)(const_dst[i]))->toStr().c_str())+1;
         int size=((IntType*)(const_dst[i]->getType()))->getSize()/8;
         
-        if(((IntType*)(const_dst[i]->getType()))->isConst()){
-            fprintf(yyout, "\t.section .rodata\n");
-        }
+        // if(((IntType*)(const_dst[i]->getType()))->isConst()){
+        //     fprintf(yyout, "\t.section .rodata\n");
+        // }
         //cout<<"name????????"<<name<<endl;???为什么??????????
         fprintf(yyout, "\t.global %s\n", name.c_str());
         fprintf(yyout, "\t.align 4\n");
         fprintf(yyout, "\t.size %s, %d\n", name.c_str(), size);
         fprintf(yyout, "%s:\n", name.c_str());
         
-        if(global_dst[i]->getType()->isFloat()){
+        if(const_dst[i]->getType()->isFloat()){
             float val;
-            if(global_src[i]&&global_src[i]->isConstant()){
-                val=((ConstantSymbolEntry*)(global_src[i]))->getValue();
+            if(const_src[i]&&const_src[i]->isConstant()){
+                val=((ConstantSymbolEntry*)(const_src[i]))->getValue();
+                cout<<val<<"-----------------------"<<name<<const_src[i]->get_value()<<endl;
             }
             else{
                 val=0;
@@ -921,8 +928,8 @@ void MachineUnit::PrintGlobalDecl()
         }
         else{
             string val;
-            if(global_src[i]&&global_src[i]->isConstant()){
-                val=global_src[i]->toStr();
+            if(const_src[i]&&const_src[i]->isConstant()){
+                val=const_src[i]->toStr();
             }
             else{
                 val="0";

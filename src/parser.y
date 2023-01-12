@@ -1414,8 +1414,8 @@ DeclStmt
         std::map <std::string, ExprNode*>::iterator it=idlist.begin();
         SymbolEntry *se;
         while(it!=idlist.end()){
-            
-            // cout<<it->first<<endl;
+            cout<<"!!!!!!!!!!!!!"<<endl;
+            cout<<it->first<<endl;
             se=identifiers->lookup(it->first);
             if(!se){
                 se = new IdentifierSymbolEntry($1, it->first, identifiers->getLevel());
@@ -1425,12 +1425,15 @@ DeclStmt
             }
             if(it->second){
                 se->set_value(it->second->getSymPtr()->get_value());
-                cout<<"******************"<<it->second->getSymPtr()->get_value()<<endl;
+                // cout<<"******************"<<it->second->getSymPtr()->get_value()<<endl;
                 //救命。。
                 if(identifiers->getLevel()==0){
                     SymbolEntry* const_se=new ConstantSymbolEntry($1, it->second->getSymPtr()->get_value());
+                    // cout<<((ConstantSymbolEntry*)const_se)->getValue()<<endl;
+                    const_se->set_value(it->second->getSymPtr()->get_value());
                     it->second=new Constant(const_se);
                 }
+                // cout<<"******************"<<it->second->getSymPtr()->get_value()<<endl;
             }
             cout<<it->first<<endl;
             identifiers->install(it->first, se);

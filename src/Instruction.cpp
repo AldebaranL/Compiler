@@ -1457,9 +1457,11 @@ void CallInstruction::genMachineCode(AsmBuilder* builder)
     cur_block->InsertInst(cur_inst);
 
     //add sp, sp, #..
-    auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
-    cur_inst=new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, genMachineImm(push_num*4));
-    cur_block->InsertInst(cur_inst);
+    if(push_num){
+        auto sp = new MachineOperand(MachineOperand::REG, 13);//sp为13号寄存器
+        cur_inst=new BinaryMInstruction(cur_block, BinaryMInstruction::ADD, sp, sp, genMachineImm(push_num*4));
+        cur_block->InsertInst(cur_inst);
+    }
 
     if(ret_type=="float"){
         auto ret_dst=genMachineFPOperand(operands[0]);
@@ -1467,7 +1469,7 @@ void CallInstruction::genMachineCode(AsmBuilder* builder)
         cur_inst=new MovMInstruction(cur_block, MovMInstruction::VMOV, ret_dst, s0);
         cur_block->InsertInst(cur_inst);
     }
-    else{
+    else if(ret_type=="i32"){
         //mov r0 ..
         auto ret_dst=genMachineOperand(operands[0]);
         auto r0=new MachineOperand(MachineOperand::REG, 0);
