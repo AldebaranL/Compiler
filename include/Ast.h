@@ -48,7 +48,7 @@ protected:
     SymbolEntry *symbolEntry;
     Operand *dst;   // The result of the subtree is stored into dst.
     int expr_type;//加一个枚举类型，为了区分id和arrayitem
-    int value;
+    double value;
     
     bool arr_flag;
 public:
@@ -61,8 +61,8 @@ public:
     bool isBasic(){return expr_type==BASIC;};
     bool isId(){return expr_type==ID;};
     bool isArray(){return expr_type==ARRAY;};
-    void set_value(int val){value=val;};
-    int get_value(){return value;};
+    void set_value(double val){value=val;};
+    double get_value(){return value;};
     void set_arrflag(bool f){arr_flag=f;};
     bool get_arrflag(){return arr_flag;};
 };
@@ -351,6 +351,7 @@ public:
     void output();
     void typeCheck();
     void genCode(Unit *unit);
+    
 };
 
 #endif

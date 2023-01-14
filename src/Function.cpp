@@ -75,6 +75,31 @@ void Function::output() const
     fprintf(yyout, "}\n");
 }
 
+void Function::deadinst_mark()
+{
+    std::set<BasicBlock *> v;
+    std::list<BasicBlock *> q;
+    q.push_back(entry);
+    v.insert(entry);
+    while (!q.empty())
+    {
+        //cout<<"qsize:"<<q.size()<<endl;
+        auto bb = q.front();
+        q.pop_front();
+        bb->deadinst_mark();
+        //cout<<"bb_num:"<<bb->getNo()<<endl;
+        for (auto succ = bb->succ_begin(); succ != bb->succ_end(); succ++)
+        {
+            if (v.find(*succ) == v.end())
+            {
+                v.insert(*succ);//没有这个块
+                q.push_back(*succ);
+            }
+        }
+    }
+    //cout<<"ret_bb==null?"<<(ret_bb==nullptr)<<endl;
+}
+
 void Function::genMachineCode(AsmBuilder* builder) 
 {
     auto cur_unit = builder->getUnit();

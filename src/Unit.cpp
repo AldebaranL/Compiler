@@ -20,7 +20,7 @@ void Unit::removeFunc(Function *func)
 void Unit::output() const
 {
     for(auto &inst : global_defs){
-        cout<<"global"<<endl;
+        cout<<"!!global"<<endl;
         inst->output();
     }
     for (auto &func : func_list)
@@ -29,8 +29,28 @@ void Unit::output() const
         cout<<"hi??"<<endl;
         FunctionType* type = (FunctionType*)(se->getType());
         std::string str = type->toStr();
-        if(se->toStr()=="@getint"||se->toStr()=="@getch"){
+        if(se->toStr()=="@getint"||se->toStr()=="@getch"||se->toStr()=="@getfloat"){
             fprintf(yyout, "declare %s %s()\n", type->getRetType()->toStr().c_str(),
+                se->toStr().c_str());
+        }
+        else if(se->toStr()=="@putfloat"){
+            fprintf(yyout, "declare %s %s(float)\n", type->getRetType()->toStr().c_str(),
+                se->toStr().c_str());
+        }
+        else if(se->toStr()=="@getarray"){
+            fprintf(yyout, "declare %s %s(i32*)\n", type->getRetType()->toStr().c_str(),
+                se->toStr().c_str());
+        }
+        else if(se->toStr()=="@putarray"){
+            fprintf(yyout, "declare %s %s(i32, i32*)\n", type->getRetType()->toStr().c_str(),
+                se->toStr().c_str());
+        }
+        else if(se->toStr()=="@getfarray"){
+            fprintf(yyout, "declare %s %s(float*)\n", type->getRetType()->toStr().c_str(),
+                se->toStr().c_str());
+        }
+        else if(se->toStr()=="@putfarray"){
+            fprintf(yyout, "declare %s %s(i32, float*)\n", type->getRetType()->toStr().c_str(),
                 se->toStr().c_str());
         }
         else{
@@ -38,6 +58,13 @@ void Unit::output() const
                 se->toStr().c_str());
         }
     }
+    
+}
+
+void Unit::deadinst_mark()
+{
+    for (auto &func : func_list)
+        func->deadinst_mark();
     
 }
 

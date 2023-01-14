@@ -59,42 +59,44 @@ extern int yydebug;
   {
     ID = 258,
     INTEGER = 259,
-    IF = 260,
-    ELSE = 261,
-    WHILE = 262,
-    INT = 263,
-    BOOL = 264,
-    VOID = 265,
-    LPAREN = 266,
-    RPAREN = 267,
-    LBRACKET = 268,
-    RBRACKET = 269,
-    LBRACE = 270,
-    RBRACE = 271,
-    SEMICOLON = 272,
-    COMMA = 273,
-    NOT = 274,
-    AADD = 275,
-    SSUB = 276,
-    MUL = 277,
-    DIV = 278,
-    MOD = 279,
-    ADD = 280,
-    SUB = 281,
-    OR = 282,
-    AND = 283,
-    LESS = 284,
-    MORE = 285,
-    EQUAL = 286,
-    MORE_E = 287,
-    LESS_E = 288,
-    NOT_EQUAL = 289,
-    ASSIGN = 290,
-    RETURN = 291,
-    CONST = 292,
-    BREAK = 293,
-    CONTINUE = 294,
-    THEN = 295
+    FLOATING_POINT = 260,
+    IF = 261,
+    ELSE = 262,
+    WHILE = 263,
+    INT = 264,
+    FLOAT = 265,
+    BOOL = 266,
+    VOID = 267,
+    LPAREN = 268,
+    RPAREN = 269,
+    LBRACKET = 270,
+    RBRACKET = 271,
+    LBRACE = 272,
+    RBRACE = 273,
+    SEMICOLON = 274,
+    COMMA = 275,
+    NOT = 276,
+    AADD = 277,
+    SSUB = 278,
+    MUL = 279,
+    DIV = 280,
+    MOD = 281,
+    ADD = 282,
+    SUB = 283,
+    OR = 284,
+    AND = 285,
+    LESS = 286,
+    MORE = 287,
+    EQUAL = 288,
+    MORE_E = 289,
+    LESS_E = 290,
+    NOT_EQUAL = 291,
+    ASSIGN = 292,
+    RETURN = 293,
+    CONST = 294,
+    BREAK = 295,
+    CONTINUE = 296,
+    THEN = 297
   };
 #endif
 
@@ -104,13 +106,13 @@ union YYSTYPE
 {
 #line 43 "src/parser.y"
 
-    int itype;
+    double itype;
     char* strtype;
     StmtNode* stmttype;
     ExprNode* exprtype;
     Type* type;
 
-#line 114 "include/parser.h"
+#line 116 "include/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

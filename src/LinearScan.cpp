@@ -78,7 +78,9 @@ void LinearScan::computeLiveIntervals()
         int t = -1;
         for (auto &use : du_chain.second)
             t = std::max(t, use->getParent()->getNo());
-        Interval *interval = new Interval({du_chain.first->getParent()->getNo(), t, false, 0, 0, {du_chain.first}, du_chain.second});
+        Interval *interval = new Interval({du_chain.first->getParent()->getNo(), t, false, 0, 0, 
+                                            du_chain.first->isFloat(),
+                                            {du_chain.first}, du_chain.second});
         intervals.push_back(interval);
     }
     for (auto& interval : intervals) {
@@ -167,8 +169,11 @@ bool LinearScan::linearScanRegisterAllocation()
     bool success=true;
     activelist.clear();
     regs.clear();
+    fpregs.clear();
     for (int i = 4; i < 11; i++)
         regs.push_back(i);
+    for (int i = 5; i < 32; i++)
+        fpregs.push_back(i+16);
     for(auto& interval:intervals){
         // cout<<"--------------------------"<<endl;
         // for(int x=0;x<regs.size();x++){
@@ -177,17 +182,24 @@ bool LinearScan::linearScanRegisterAllocation()
         // cout<<endl;
         //寻找可用空间
         expireOldIntervals(interval);
-        if(regs.empty()){
+        if((!interval->fp_tag&&regs.empty())||(interval->fp_tag&&fpregs.empty())){
             //return false;
             spillAtInterval(interval);
             success=false;
             // break;//不能break，还要继续
         }
         else{
-            interval->rreg = regs.front();//分配寄存器
+            if(!interval->fp_tag){
+                interval->rreg = regs.front();//分配寄存器
+                regs.erase(regs.begin());
+            }
+            else{
+                interval->rreg = fpregs.front();//分配寄存器
+                fpregs.erase(fpregs.begin());
+            }
             activelist.push_back(interval);
             //cout<<"interval->rreg:"<<interval->rreg<<endl;
-            regs.erase(regs.begin());
+            
             //必须要在里面sort，因为每次循环expireOldIntervals会默认activelist已排序
             sort(activelist.begin(), activelist.end(), compareEnd);
         }
@@ -208,6 +220,7 @@ void LinearScan::modifyCode()
     }
 }
 
+// 生成溢出代码
 void LinearScan::genSpillCode()
 {
     for (auto& interval : intervals) {
@@ -218,43 +231,79 @@ void LinearScan::genSpillCode()
          * 1. insert ldr inst before the use of vreg
          * 2. insert str inst after the def of vreg
          */
-        interval->disp = -func->AllocSpace(4);//记录溢出的栈偏移
+        interval->disp = -func->AllocSpace(4);//分配栈空间 记录溢出的栈偏移
         cout<<"interval->disp:"<<interval->disp<<endl;
         auto off = new MachineOperand(MachineOperand::IMM, interval->disp);
         auto fp = new MachineOperand(MachineOperand::REG, 11);
 
-        //uselist: insert LoadM
+        //扫描uselist 使用前ldr
         for (auto use : interval->uses) {
             auto temp = new MachineOperand(*use);
             MachineOperand* operand = nullptr;
+
+            //ldr operand =<off> 加载偏移立即数
             if (interval->disp > 255 || interval->disp < -255) {
                 operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
-                auto inst1 =new LoadMInstruction(use->getParent()->getParent(),operand, off);
+                auto inst1 =new LoadMInstruction(use->getParent()->getParent(),LoadMInstruction::LDR,operand, off);
                 use->getParent()->insertBefore(inst1);
             }
+            //off是立即数还是在寄存器中
             if (operand) {
-                auto inst = new LoadMInstruction(use->getParent()->getParent(),temp, fp, new MachineOperand(*operand));
-                use->getParent()->insertBefore(inst);
+                if(!use->isFloat()){
+                    //ldr reg [fp, operand]
+                    auto inst = new LoadMInstruction(use->getParent()->getParent(),LoadMInstruction::LDR,temp, fp, new MachineOperand(*operand));
+                    use->getParent()->insertBefore(inst);
+                }
+                else{
+                    auto reg = new MachineOperand(MachineOperand::VREG, SymbolTable::getLabel());
+                    //add reg fp operand
+                    MachineInstruction* inst = new BinaryMInstruction(use->getParent()->getParent(), BinaryMInstruction::ADD, reg, fp, new MachineOperand(*operand));
+                    use->getParent()->insertBefore(inst);
+                    //ldr temp [reg]
+                    inst = new LoadMInstruction(use->getParent()->getParent(), LoadMInstruction::VLDR, temp, new MachineOperand(*reg));
+                    use->getParent()->insertBefore(inst);
+                }
             } else {
-                auto inst = new LoadMInstruction(use->getParent()->getParent(),temp, fp, off);
-                use->getParent()->insertBefore(inst);
+                if(!use->isFloat()){
+                    auto inst = new LoadMInstruction(use->getParent()->getParent(),LoadMInstruction::LDR,temp, fp, off);
+                    use->getParent()->insertBefore(inst);
+                }
+                else{
+                    auto inst = new LoadMInstruction( use->getParent()->getParent(), LoadMInstruction::VLDR, temp, fp, off);
+                    use->getParent()->insertBefore(inst);
+                }
             }
         }
 
-        //deflist: insert StoreM
+        //扫描deflist 定义时str
+        //同理
         for (auto def : interval->defs) {
             auto temp = new MachineOperand(*def);
             MachineOperand* operand = nullptr;
             MachineInstruction *inst1 = nullptr, *inst = nullptr;
             if (interval->disp > 255 || interval->disp < -255) {
                 operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
-                inst1 = new LoadMInstruction(def->getParent()->getParent(),operand, off);
-                def->getParent()->insertAfter(inst1);
+                inst1 = new LoadMInstruction(def->getParent()->getParent(),LoadMInstruction::LDR,operand, off);
+                def->getParent()->insertAfter(inst1);//
             }
             if (operand) {
-                inst = new StoreMInstruction(def->getParent()->getParent(), temp, fp, new MachineOperand(*operand));
+                if (!def->isFloat()) {
+                    inst = new StoreMInstruction(def->getParent()->getParent(),StoreMInstruction::STR, temp, fp, new MachineOperand(*operand));
+                }
+                else{
+                    auto reg = new MachineOperand(MachineOperand::VREG, SymbolTable::getLabel());
+                    MachineInstruction* tmp_inst = new BinaryMInstruction(def->getParent()->getParent(), BinaryMInstruction::ADD, reg, fp, new MachineOperand(*operand));
+                    inst1->insertAfter(tmp_inst);
+                    inst1 = tmp_inst;
+                    inst = new StoreMInstruction(def->getParent()->getParent(), StoreMInstruction::VSTR, temp, new MachineOperand(*reg));
+                }
             } else {
-                inst = new StoreMInstruction(def->getParent()->getParent(),temp,fp, off);
+                if (!def->isFloat()) {
+                    inst = new StoreMInstruction(def->getParent()->getParent(),StoreMInstruction::STR,temp,fp, off);
+                }
+                else {
+                    inst = new StoreMInstruction(def->getParent()->getParent(),StoreMInstruction::VSTR, temp, fp, off);
+                }
             }
             if (inst1)
                 inst1->insertAfter(inst);
@@ -270,20 +319,27 @@ void LinearScan::expireOldIntervals(Interval *interval)
     // Todo
     vector<Interval*>::iterator it = activelist.begin();
 
-    //从前往后（结束时间递增）
+    // 从前往后（activelist有序 按结束时间递增）
     // cout<<"---------------------"<<endl;
     while (it != activelist.end()) {
         if ((*it)->end >= interval->start)
             return;
-        // general purpose registers
-        // cout<<"erase!"<<endl;
-        // cout<<"rreg:"<<(*it)->rreg<<endl;
-        regs.push_back((*it)->rreg);
-        //it++;//不能这样！！一边遍历一边删除
-        //it迭代放最后！！TT晕了
-        it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置     
+        // r regs
+        if ((*it)->rreg < 11) {
+            // cout<<"erase!"<<endl;
+            // cout<<"rreg:"<<(*it)->rreg<<endl;
+            regs.push_back((*it)->rreg);
+            //it++;//不能这样！！一边遍历一边删除
+            //it迭代放最后！！
+            it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置    
+        } 
+        // fp regs
+        else{
+            fpregs.push_back((*it)->rreg);
+            it = activelist.erase(find(activelist.begin(), activelist.end(), *it));
+        }
     }
-    //sort(regs.begin(), regs.end(), up);
+    //sort(fpregs.begin(), fpregs.end(), up);
 }
 
 //寄存器溢出 找结束时间最晚的

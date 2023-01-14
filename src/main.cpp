@@ -77,10 +77,14 @@ int main(int argc, char *argv[])
     mUnit.global_src=unit.global_src;
     mUnit.arr_global_dst=unit.arr_global_dst;
     mUnit.arr_global_src=unit.arr_global_src;
-
+    
     unit.genMachineCode(&mUnit);
+    unit.deadinst_mark();
+
+    //死代码删除
+    //mUnit.deadinst_mark();
+    
     LinearScan linearScan(&mUnit);
-    cout<<"hi"<<endl;
     linearScan.allocateRegisters();
     cout<<"hi"<<endl;
     cout<<"output stage----"<<endl;

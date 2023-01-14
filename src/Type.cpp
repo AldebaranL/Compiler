@@ -3,16 +3,19 @@
 #include <iostream>
 using namespace std;
 
-
 IntType TypeSystem::commonInt = IntType(32);
+IntType TypeSystem::commonConstInt = IntType(32, true);
 IntType TypeSystem::commonBool = IntType(1);
 VoidType TypeSystem::commonVoid = VoidType();
-ConstType TypeSystem::commonConst = ConstType(32);
+FloatType TypeSystem::commonFloat = FloatType(32);
+FloatType TypeSystem::commonConstFloat = FloatType(32, true);
 
 Type* TypeSystem::intType = &commonInt;
+Type* TypeSystem::intType_const = &commonConstInt;
 Type* TypeSystem::voidType = &commonVoid;
 Type* TypeSystem::boolType = &commonBool;
-Type* TypeSystem::constType =&commonConst;
+Type* TypeSystem::floatType = &commonFloat;
+Type* TypeSystem::floatType_const = &commonConstFloat;
 
 // bool IntType::is_const()
 // {
@@ -37,6 +40,12 @@ std::string IntType::toStr()
     buffer << "i" << size;
     return buffer.str();
 }
+
+std::string FloatType::toStr()
+{
+    return "float";
+}
+
 
 std::string VoidType::toStr()
 {
@@ -98,12 +107,5 @@ std::string PointerType::toStr()
 {
     std::ostringstream buffer;
     buffer << valueType->toStr() << "*";
-    return buffer.str();
-}
-
-std::string ConstType::toStr()
-{
-    std::ostringstream buffer;
-    buffer << "i" << size;
     return buffer.str();
 }

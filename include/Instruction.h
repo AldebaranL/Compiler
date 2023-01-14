@@ -27,11 +27,16 @@ public:
     Instruction *getPrev();
     virtual void output() const = 0;
     MachineOperand* genMachineOperand(Operand*);
+    MachineOperand* genMachineFPOperand(Operand*);
     MachineOperand* genMachineReg(int reg);
-    MachineOperand* genMachineVReg();
+    MachineOperand* genMachineFReg(int freg);
+    MachineOperand* genMachineVReg(bool fp=false);
     MachineOperand* genMachineImm(int val);
     MachineOperand* genMachineLabel(int block_no);
     virtual void genMachineCode(AsmBuilder*) = 0;
+    std::vector<Operand*> getOperands(){return operands;};
+
+    bool killed=false;
 protected:
     unsigned instType;
     unsigned opcode;
@@ -143,8 +148,10 @@ public:
 class CallInstruction : public Instruction
 {
 public:
+    std::string ret_type;
     std::string names;
     vector<Operand*> vo;
+    vector<Type*> types;
     int isvoid;
     //SymbolEntry *se;
 public:
@@ -170,8 +177,11 @@ public:
 //强制类型转换
 class TypefixInstruction : public Instruction
 {
+        
+    int kind;
 public:
-    TypefixInstruction(Operand* dst, Operand *src, BasicBlock *insert_bb = nullptr);
+    enum{BOOL2INT, INT2FLOAT, FLOAT2INT};
+    TypefixInstruction(Operand* dst, Operand *src, BasicBlock *insert_bb = nullptr, int kind=BOOL2INT);
     ~TypefixInstruction();
     void output() const;
     void genMachineCode(AsmBuilder*);

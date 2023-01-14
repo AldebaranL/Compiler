@@ -35,9 +35,13 @@ private:
     int reg_no; // register no
     std::string label; // address label
     bool isfunc;//区分label的打印
+
+    bool is_fp=false;
+    float fval;
 public:
     enum { IMM, VREG, REG, LABEL };
-    MachineOperand(int tp, int val);
+    MachineOperand(int tp, int val, bool fp=false);
+    MachineOperand(int tp, float val, bool fp=true);
     MachineOperand(std::string label, bool isfunc=false);
     bool operator == (const MachineOperand&) const;
     bool operator < (const MachineOperand&) const;
@@ -46,6 +50,7 @@ public:
     bool isVReg() { return this->type == VREG; };
     bool isLabel() { return this->type == LABEL; };
     int getVal() {return this->val; };
+    
     int getReg() {return this->reg_no; };
     void setReg(int regno) {this->type = REG; this->reg_no = regno;};
     std::string getLabel() {return this->label; };
@@ -53,6 +58,11 @@ public:
     MachineInstruction* getParent() { return this->parent;};
     void PrintReg();
     void output();
+
+    bool isFloat() { return this->is_fp; }
+    void setFVal(float val) {fval=val; is_fp=true;};
+    float getFVal(){return fval;};
+
 };
 
 class MachineInstruction
@@ -63,6 +73,8 @@ protected:
     int type;  // Instruction type
     int cond = MachineInstruction::NONE;  // Instruction execution condition, optional !!
     int op;  // Instruction opcode
+    
+
     // Instruction operand list, sorted by appearance order in assembly instruction
     std::vector<MachineOperand*> def_list;
     std::vector<MachineOperand*> use_list;
@@ -70,8 +82,9 @@ protected:
     void addUse(MachineOperand* ope) { use_list.push_back(ope); };
     // Print execution code after printing opcode
     void PrintCond();
-    enum instType { BINARY, LOAD, STORE, MOV, BRANCH, CMP, STACK };
+    enum instType { BINARY, LOAD, STORE, MOV, BRANCH, CMP, STACK, VMRS, VCVT };
 public:
+    bool dead=false;
     enum condType { E, NE, L, LE , G, GE, NONE };//和CmpInstruction保持统一 enum {E, NE, L, GE, G, LE};
 
     virtual void output() = 0;
@@ -92,7 +105,7 @@ class BinaryMInstruction : public MachineInstruction
 {
     bool bp;
 public:
-    enum opType { ADD, SUB, MUL, DIV, AND, OR };
+    enum opType { ADD, SUB, MUL, DIV, AND, OR, VADD, VSUB, VMUL, VDIV};
     BinaryMInstruction(MachineBlock* p, int op, 
                     MachineOperand* dst, MachineOperand* src1, MachineOperand* src2, 
                     bool bp=false,
@@ -106,8 +119,10 @@ public:
 class LoadMInstruction : public MachineInstruction
 {
     bool bp;
+    int kind;
 public:
-    LoadMInstruction(MachineBlock* p,
+    enum{LDR, VLDR};
+    LoadMInstruction(MachineBlock* p, int kind,
                     MachineOperand* dst, MachineOperand* src1, MachineOperand* src2 = nullptr, 
                     int cond = MachineInstruction::NONE, bool bp=false);
     void output();
@@ -118,8 +133,10 @@ public:
 
 class StoreMInstruction : public MachineInstruction
 {
+    int kind;
 public:
-    StoreMInstruction(MachineBlock* p,
+    enum{STR, VSTR};
+    StoreMInstruction(MachineBlock* p, int kind,
                     MachineOperand* src1, MachineOperand* src2, MachineOperand* src3 = nullptr, 
                     int cond = MachineInstruction::NONE);
     void output();
@@ -128,7 +145,7 @@ public:
 class MovMInstruction : public MachineInstruction
 {
 public:
-    enum opType { MOV, MVN, MOVEQ, MOVNE, MOVGE, MOVGT, MOVLE, MOVLT };
+    enum opType { MOV, VMOV, VMOVF32, MVN, MOVEQ, MOVNE, MOVGE, MOVGT, MOVLE, MOVLT };
     MovMInstruction(MachineBlock* p, int op, 
                 MachineOperand* dst, MachineOperand* src,
                 int cond = MachineInstruction::NONE);
@@ -147,24 +164,43 @@ public:
 
 class CmpMInstruction : public MachineInstruction
 {
+    int kind;
 public:
-    enum opType { CMP };
-    CmpMInstruction(MachineBlock* p, 
+    enum opType { CMP, VCMP };
+    CmpMInstruction(MachineBlock* p, int kind,
                 MachineOperand* src1, MachineOperand* src2, 
                 int cond = MachineInstruction::NONE);
+    void output();
+};
+
+class VmrsMInstruction : public MachineInstruction {
+   public:
+    VmrsMInstruction(MachineBlock* p);
+    void output();
+};
+
+class VcvtMInstruction : public MachineInstruction {
+   public:
+    enum opType { S2F, F2S };
+    VcvtMInstruction(MachineBlock* p,
+                     int op,
+                     MachineOperand* dst,
+                     MachineOperand* src,
+                     int cond = MachineInstruction::NONE);
     void output();
 };
 
 class StackMInstructon : public MachineInstruction
 {
 public:
-    enum opType { PUSH, POP };
+    enum opType { PUSH, POP, VPUSH, VPOP };
     StackMInstructon(MachineBlock* p, int op, 
                 vector<MachineOperand*> src_list,
                 int cond = MachineInstruction::NONE);
     void output();
     void addSrc(vector<MachineOperand*> src_list);
     bool isPOP(){return op==POP;};
+    bool isVPOP(){return op==VPOP;};
 };
 
 // class GlobalMInstruction : public MachineInstruction
@@ -205,10 +241,12 @@ public:
     std::vector<MachineBlock*>& getSuccs() {return succ;};
     MachineFunction* getParent(){return parent;};
     void output();
+    void deadinst_mark();
     void set_op(int op){this->opcode = op;};
     int get_op(){return this->opcode;};
 
     int getCount(){return inst_list.size();};
+    
 };
 
 class MachineFunction
@@ -221,7 +259,9 @@ private:
     SymbolEntry* sym_ptr;
 public:
     vector<MachineOperand*> src_list;
+    vector<MachineOperand*> v_src_list;
     vector<MachineInstruction*> stack_list;
+    vector<int> use_regnos;
 
 public:
     std::vector<MachineBlock*>& getBlocks() {return block_list;};
@@ -239,6 +279,7 @@ public:
     void addSavedRegs(int regno) {saved_regs.insert(regno);};
     int num_SavedRegs(){return saved_regs.size();};
     void output();
+    void deadinst_mark();
     MachineUnit* getParent(){return parent;};
 
     int getCount(){
@@ -271,6 +312,7 @@ public:
     std::vector<MachineFunction*>::iterator end() { return func_list.end(); };
     void InsertFunc(MachineFunction* func) { func_list.push_back(func);};
     void output();
+    void deadinst_mark();
 };
 
 #endif

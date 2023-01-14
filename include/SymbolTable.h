@@ -14,7 +14,7 @@ private:
 protected:
     enum {CONSTANT, VARIABLE, TEMPORARY};
     Type *type;
-    int const_value;
+    double const_value;
 
 
 public:
@@ -27,8 +27,8 @@ public:
     void setType(Type *type) {this->type = type;};
     virtual std::string toStr() = 0;
     // You can add any function you need here.
-    void set_value(int val){const_value=val;};
-    int get_value(){return const_value;};
+    void set_value(double val){const_value=val;};
+    double get_value(){return const_value;};
 };
 
 
@@ -42,12 +42,12 @@ public:
 class ConstantSymbolEntry : public SymbolEntry
 {
 private:
-    int value;
+    double value;
 
 public:
-    ConstantSymbolEntry(Type *type, int value);
+    ConstantSymbolEntry(Type *type, double value);
     virtual ~ConstantSymbolEntry() {};
-    int getValue() const {return value;};
+    double getValue() const {return value;};
     std::string toStr();
     // You can add any function you need here.
 };

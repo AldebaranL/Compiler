@@ -46,9 +46,39 @@ void BasicBlock::output() const
             fprintf(yyout, ", %%B%d", (*i)->getNo());
     }
     fprintf(yyout, "\n");
-    for (auto i = head->getNext(); i != head; i = i->getNext())
-        i->output();
+    for (auto i = head->getNext(); i != head; i = i->getNext()){
+        bool elim=true;
+        for(auto& op:i->getOperands()){
+            if((op->getDef())==nullptr) continue;
+            if(op->usersNum()!=0) {
+                elim=false;break;
+            }
+        }
+        if(i->isCond()||i->isUncond()||!elim){
+            i->output();
+        }
+        
+    }
 }
+
+void BasicBlock::deadinst_mark()
+{
+    for (auto i = head->getNext(); i != head; i = i->getNext()){
+        bool elim=true;
+        for(auto& op:i->getOperands()){
+            if((op->getDef())==nullptr) continue;
+            if(op->usersNum()!=0) {
+                elim=false;break;
+            }
+        }
+        if(elim) {
+            // cout<<"**********************killed"<<endl;
+            i->killed=true;
+        }
+
+    }
+}
+
 
 void BasicBlock::addSucc(BasicBlock *bb)
 {
