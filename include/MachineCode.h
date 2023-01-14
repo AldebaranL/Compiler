@@ -62,6 +62,7 @@ public:
     bool isFloat() { return this->is_fp; }
     void setFVal(float val) {fval=val; is_fp=true;};
     float getFVal(){return fval;};
+
 };
 
 class MachineInstruction
@@ -72,6 +73,8 @@ protected:
     int type;  // Instruction type
     int cond = MachineInstruction::NONE;  // Instruction execution condition, optional !!
     int op;  // Instruction opcode
+    
+
     // Instruction operand list, sorted by appearance order in assembly instruction
     std::vector<MachineOperand*> def_list;
     std::vector<MachineOperand*> use_list;
@@ -81,6 +84,7 @@ protected:
     void PrintCond();
     enum instType { BINARY, LOAD, STORE, MOV, BRANCH, CMP, STACK, VMRS, VCVT };
 public:
+    bool dead=false;
     enum condType { E, NE, L, LE , G, GE, NONE };//和CmpInstruction保持统一 enum {E, NE, L, GE, G, LE};
 
     virtual void output() = 0;
@@ -237,10 +241,12 @@ public:
     std::vector<MachineBlock*>& getSuccs() {return succ;};
     MachineFunction* getParent(){return parent;};
     void output();
+    void deadinst_mark();
     void set_op(int op){this->opcode = op;};
     int get_op(){return this->opcode;};
 
     int getCount(){return inst_list.size();};
+    
 };
 
 class MachineFunction
@@ -255,6 +261,7 @@ public:
     vector<MachineOperand*> src_list;
     vector<MachineOperand*> v_src_list;
     vector<MachineInstruction*> stack_list;
+    vector<int> use_regnos;
 
 public:
     std::vector<MachineBlock*>& getBlocks() {return block_list;};
@@ -272,6 +279,7 @@ public:
     void addSavedRegs(int regno) {saved_regs.insert(regno);};
     int num_SavedRegs(){return saved_regs.size();};
     void output();
+    void deadinst_mark();
     MachineUnit* getParent(){return parent;};
 
     int getCount(){
@@ -304,6 +312,7 @@ public:
     std::vector<MachineFunction*>::iterator end() { return func_list.end(); };
     void InsertFunc(MachineFunction* func) { func_list.push_back(func);};
     void output();
+    void deadinst_mark();
 };
 
 #endif

@@ -351,6 +351,7 @@ public:
     void output();
     void typeCheck();
     void genCode(Unit *unit);
+    
 };
 
 #endif

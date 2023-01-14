@@ -220,6 +220,7 @@ void LinearScan::modifyCode()
     }
 }
 
+// 生成溢出代码
 void LinearScan::genSpillCode()
 {
     for (auto& interval : intervals) {
@@ -230,29 +231,35 @@ void LinearScan::genSpillCode()
          * 1. insert ldr inst before the use of vreg
          * 2. insert str inst after the def of vreg
          */
-        interval->disp = -func->AllocSpace(4);//记录溢出的栈偏移
+        interval->disp = -func->AllocSpace(4);//分配栈空间 记录溢出的栈偏移
         cout<<"interval->disp:"<<interval->disp<<endl;
         auto off = new MachineOperand(MachineOperand::IMM, interval->disp);
         auto fp = new MachineOperand(MachineOperand::REG, 11);
 
-        //uselist: insert LoadM
+        //扫描uselist 使用前ldr
         for (auto use : interval->uses) {
             auto temp = new MachineOperand(*use);
             MachineOperand* operand = nullptr;
+
+            //ldr operand =<off> 加载偏移立即数
             if (interval->disp > 255 || interval->disp < -255) {
                 operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
                 auto inst1 =new LoadMInstruction(use->getParent()->getParent(),LoadMInstruction::LDR,operand, off);
                 use->getParent()->insertBefore(inst1);
             }
+            //off是立即数还是在寄存器中
             if (operand) {
                 if(!use->isFloat()){
+                    //ldr reg [fp, operand]
                     auto inst = new LoadMInstruction(use->getParent()->getParent(),LoadMInstruction::LDR,temp, fp, new MachineOperand(*operand));
                     use->getParent()->insertBefore(inst);
                 }
                 else{
                     auto reg = new MachineOperand(MachineOperand::VREG, SymbolTable::getLabel());
+                    //add reg fp operand
                     MachineInstruction* inst = new BinaryMInstruction(use->getParent()->getParent(), BinaryMInstruction::ADD, reg, fp, new MachineOperand(*operand));
                     use->getParent()->insertBefore(inst);
+                    //ldr temp [reg]
                     inst = new LoadMInstruction(use->getParent()->getParent(), LoadMInstruction::VLDR, temp, new MachineOperand(*reg));
                     use->getParent()->insertBefore(inst);
                 }
@@ -268,7 +275,8 @@ void LinearScan::genSpillCode()
             }
         }
 
-        //deflist: insert StoreM
+        //扫描deflist 定义时str
+        //同理
         for (auto def : interval->defs) {
             auto temp = new MachineOperand(*def);
             MachineOperand* operand = nullptr;
@@ -276,7 +284,7 @@ void LinearScan::genSpillCode()
             if (interval->disp > 255 || interval->disp < -255) {
                 operand = new MachineOperand(MachineOperand::VREG,SymbolTable::getLabel());
                 inst1 = new LoadMInstruction(def->getParent()->getParent(),LoadMInstruction::LDR,operand, off);
-                def->getParent()->insertAfter(inst1);
+                def->getParent()->insertAfter(inst1);//
             }
             if (operand) {
                 if (!def->isFloat()) {
@@ -311,19 +319,21 @@ void LinearScan::expireOldIntervals(Interval *interval)
     // Todo
     vector<Interval*>::iterator it = activelist.begin();
 
-    //从前往后（结束时间递增）
+    // 从前往后（activelist有序 按结束时间递增）
     // cout<<"---------------------"<<endl;
     while (it != activelist.end()) {
         if ((*it)->end >= interval->start)
             return;
+        // r regs
         if ((*it)->rreg < 11) {
             // cout<<"erase!"<<endl;
             // cout<<"rreg:"<<(*it)->rreg<<endl;
             regs.push_back((*it)->rreg);
             //it++;//不能这样！！一边遍历一边删除
-            //it迭代放最后！！TT晕了
+            //it迭代放最后！！
             it=activelist.erase(find(activelist.begin(), activelist.end(), *it));//erase返回下一个位置    
         } 
+        // fp regs
         else{
             fpregs.push_back((*it)->rreg);
             it = activelist.erase(find(activelist.begin(), activelist.end(), *it));

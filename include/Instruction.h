@@ -34,6 +34,9 @@ public:
     MachineOperand* genMachineImm(int val);
     MachineOperand* genMachineLabel(int block_no);
     virtual void genMachineCode(AsmBuilder*) = 0;
+    std::vector<Operand*> getOperands(){return operands;};
+
+    bool killed=false;
 protected:
     unsigned instType;
     unsigned opcode;

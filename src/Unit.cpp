@@ -61,6 +61,13 @@ void Unit::output() const
     
 }
 
+void Unit::deadinst_mark()
+{
+    for (auto &func : func_list)
+        func->deadinst_mark();
+    
+}
+
 
 void Unit::genMachineCode(MachineUnit* munit) 
 {

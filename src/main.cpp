@@ -79,6 +79,10 @@ int main(int argc, char *argv[])
     mUnit.arr_global_src=unit.arr_global_src;
     
     unit.genMachineCode(&mUnit);
+    unit.deadinst_mark();
+
+    //死代码删除
+    //mUnit.deadinst_mark();
     
     LinearScan linearScan(&mUnit);
     linearScan.allocateRegisters();

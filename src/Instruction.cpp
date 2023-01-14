@@ -393,6 +393,9 @@ CallInstruction::CallInstruction(SymbolEntry *symbolentry,Operand *dst,vector<Op
     operands.push_back(dst);
     dst->addUse(this);
     this->vo=vo;
+    for(auto &o:vo){
+        o->addUse(this);
+    }
     names=symbolentry->toStr();
     types=((FunctionType*)(symbolentry->getType()))->paramsType;
     if(((FunctionType*)(symbolentry->getType()))->getRetType()->isInt()==1){
@@ -454,7 +457,7 @@ GlobalInstruction::GlobalInstruction(Operand *dst, Operand *src, BasicBlock *ins
 
     if(src){
         operands.push_back(src);
-        src->setDef(this);
+        src->addUse(this);
     }
     this->global_arr=global_arr;
 }
@@ -559,7 +562,7 @@ ArrayItemFetchInstruction::ArrayItemFetchInstruction(Operand* tag, Type* type, O
     operands.push_back(item_addr);
     operands.push_back(offset);
     //if(dst_addr)
-        dst_addr->addUse(this);
+        dst_addr->setDef(this);
     //if(item_addr)
         item_addr->addUse(this);
     //if(offset)
@@ -699,6 +702,7 @@ void AllocaInstruction::genMachineCode(AsmBuilder* builder)
     auto cur_func = builder->getFunction();
     
     int offset;
+    //数组
     if(se->getType()->isArray()){
         cout<<"isArray!"<<endl;
         int size=1;
@@ -710,13 +714,14 @@ void AllocaInstruction::genMachineCode(AsmBuilder* builder)
             }
         }
         cout<<"size:"<<size<<endl;
-        //if(((ArrayType*)(se->getType()))->gettype()->isInt()){
-        if(dims[0]==0)
+        
+        if(dims[0]==0)//说明是指针
             offset=cur_func->AllocSpace(4);
         else
             offset=cur_func->AllocSpace(4*size);
-        //}
+        
     }
+    //普通变量
     else{
         offset = cur_func->AllocSpace(4);
     }

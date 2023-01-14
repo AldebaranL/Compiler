@@ -178,7 +178,9 @@ BinaryMInstruction::BinaryMInstruction(
     this->cond = cond;
     this->def_list.push_back(dst);
     this->use_list.push_back(src1);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src1->getReg());
     this->use_list.push_back(src2);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src2->getReg());
     dst->setParent(this);
     src1->setParent(this);
     src2->setParent(this);
@@ -287,10 +289,14 @@ LoadMInstruction::LoadMInstruction(MachineBlock* p, int kind,
     this->op = -1;
     this->cond = cond;
     this->def_list.push_back(dst);
+    cout<<"dst="<<dst<<endl;
     this->use_list.push_back(src1);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src1->getReg());
     this->bp=bp;
-    if (src2)
+    if (src2){
         this->use_list.push_back(src2);
+        if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src2->getReg());
+    }
     dst->setParent(this);
     src1->setParent(this);
     if (src2)
@@ -379,10 +385,16 @@ StoreMInstruction::StoreMInstruction(MachineBlock* p,int kind,
     this->type = MachineInstruction::STORE;
     this->op = -1;
     this->cond = cond;
+    cout<<"src1="<<src1<<endl;
+    cout<<"src2="<<src2<<endl;
     this->use_list.push_back(src1);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src1->getReg());
     this->use_list.push_back(src2);
-    if (src3)
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src2->getReg());
+    if (src3){
         this->use_list.push_back(src3);
+        if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src3->getReg());
+    }
     src1->setParent(this);
     src2->setParent(this);
     if (src3)
@@ -445,6 +457,7 @@ MovMInstruction::MovMInstruction(MachineBlock* p, int op,
     this->cond = cond;
     this->def_list.push_back(dst);
     this->use_list.push_back(src);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src->getReg());
     dst->setParent(this);
     src->setParent(this);
 }
@@ -501,6 +514,7 @@ BranchMInstruction::BranchMInstruction(MachineBlock* p, int op,
     this->op = op;
     this->cond = cond;
     this->use_list.push_back(dst);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(dst->getReg());
     dst->setParent(this);
 }
 
@@ -535,7 +549,9 @@ CmpMInstruction::CmpMInstruction(MachineBlock* p, int kind,
     this->op = op;
     this->cond = cond;
     this->use_list.push_back(src1);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src1->getReg());
     this->use_list.push_back(src2);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src2->getReg());
     src1->setParent(this);
     src2->setParent(this);
 
@@ -584,6 +600,7 @@ VcvtMInstruction::VcvtMInstruction(MachineBlock* p,
     this->cond = cond;
     this->def_list.push_back(dst);
     this->use_list.push_back(src);
+    if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src->getReg());
     dst->setParent(this);
     src->setParent(this);
 }
@@ -619,6 +636,8 @@ StackMInstructon::StackMInstructon(MachineBlock* p, int op,
     if (!src_list.empty()) {
         for(auto& src:src_list){
             this->use_list.push_back(src);
+            cout<<"??????"<<endl;
+            if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src->getReg());
             src->setParent(this);
         }
     }
@@ -628,6 +647,7 @@ void StackMInstructon::addSrc(vector<MachineOperand*> src_list){
     if (!src_list.empty()) {
         for(auto& src:src_list){
             this->use_list.push_back(src);
+            if(this->parent&&this->parent->getParent())this->parent->getParent()->use_regnos.push_back(src->getReg());
             src->setParent(this);
         }
     }
@@ -745,6 +765,8 @@ void MachineBlock::output()
     //cout<<"total:"<<inst_list.size()<<endl;
     int count=0;
     for(auto inst : inst_list){
+        //死代码删除
+        if(inst->dead)continue;
         // cout<<"count: "<<count<<endl;
         // cout<<"-----------inst?"<<(inst==nullptr)<<endl;
         // cout<<"isBinary?"<<inst->isBinary()<<endl;
@@ -780,6 +802,26 @@ void MachineBlock::output()
             fprintf(yyout, ".LTORG\n");
             parent->getParent()->PrintGlobalEnd();
             fprintf(yyout, ".B%d:\n", label++);
+        }
+    }
+    if(inst_list.empty()){
+        
+    }
+}
+
+void MachineBlock::deadinst_mark()
+{
+    for(auto inst : inst_list){
+        if(!inst->getDef().empty()){
+            bool elim=true;
+            for(auto &def:inst->getDef()){
+                if(count(parent->use_regnos.begin(), parent->use_regnos.end(), def->getReg())!=0){
+                    elim=false;
+                }
+            }
+            if(elim){
+                inst->dead=true;
+            }
         }
     }
     if(inst_list.empty()){
@@ -830,7 +872,7 @@ void MachineFunction::output()
         (new LoadMInstruction(nullptr,LoadMInstruction::LDR, temp, size))->output();
         (new BinaryMInstruction(nullptr, BinaryMInstruction::SUB, sp, sp, temp))->output();
     }
-
+    
     int count = 0;
     for(auto iter : block_list){
         iter->output();
@@ -842,6 +884,13 @@ void MachineFunction::output()
             fprintf(yyout, ".F%d:\n", parent->n - 1);
             count = 0;
         }
+    }
+}
+
+void MachineFunction::deadinst_mark()
+{
+    for(auto iter : block_list){
+        iter->deadinst_mark();
     }
 }
 
@@ -898,15 +947,15 @@ void MachineUnit::PrintGlobalDecl()
         }
     }
 
-    fprintf(yyout, "\t.section .rodata\n");
+    //fprintf(yyout, "\t.section .rodata\n");
     
     for(int i=0;i<const_dst.size();i++){
         string name=(const char*)(((IdentifierSymbolEntry*)(const_dst[i]))->toStr().c_str())+1;
         int size=((IntType*)(const_dst[i]->getType()))->getSize()/8;
         
-        // if(((IntType*)(const_dst[i]->getType()))->isConst()){
-        //     fprintf(yyout, "\t.section .rodata\n");
-        // }
+        if(((IntType*)(const_dst[i]->getType()))->isConst()){
+            fprintf(yyout, "\t.section .rodata\n");
+        }
         //cout<<"name????????"<<name<<endl;???为什么??????????
         fprintf(yyout, "\t.global %s\n", name.c_str());
         fprintf(yyout, "\t.align 4\n");
@@ -1019,4 +1068,11 @@ void MachineUnit::output()
     }
     fprintf(yyout, "\n");
     PrintGlobalEnd();
+}
+
+void MachineUnit::deadinst_mark()
+{
+    for(auto iter : func_list){
+        iter->deadinst_mark();
+    }
 }
